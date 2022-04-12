@@ -66,7 +66,6 @@ module axi4_lite_master#
 
     localparam C_AXI_DATA_BYTES = (C_AXI_DATA_WIDTH/8);
 
-
     //=========================================================================================================
     // FSM logic used for writing to the slave device.
     //
@@ -92,6 +91,8 @@ module axi4_lite_master#
     reg                         m_axi_awvalid = 0;
     reg                         m_axi_wvalid = 0;
     reg                         m_axi_bready = 0;
+    reg                         saw_waddr_ready = 0;
+    reg                         saw_wdata_ready = 0;
 
     // Wire up the AXI interface outputs
     assign M_AXI_AWADDR  = m_axi_awaddr;
@@ -102,44 +103,65 @@ module axi4_lite_master#
     assign M_AXI_WSTRB   = (1 << C_AXI_DATA_BYTES) - 1; // usually 4'b1111
     assign M_AXI_BREADY  = m_axi_bready;
     //=========================================================================================================
+     
+    // Define states that say "An xVALID signal and its corresponding xREADY signal are both asserted"
+    wire avalid_and_ready = M_AXI_AWVALID & M_AXI_AWREADY;
+    wire wvalid_and_ready = M_AXI_WVALID  & M_AXI_WREADY;
+    wire bvalid_and_ready = M_AXI_BVALID  & M_AXI_BREADY;
+
     always @(posedge M_AXI_ACLK) begin
-        
-        // Ensure that any writes to this signal are for a single clock-pulse
-        m_axi_bready <= 0;
-        
+
+        debug <= write_state + 1;
+
         if (M_AXI_ARESETN == 0) begin
             write_state   <= 0;
             m_axi_awvalid <= 0;
             m_axi_wvalid  <= 0;
-        end else case (write_state)
+            m_axi_bready  <= 0;
+        end else begin
+            case (write_state)
             
             // Here we're idle, waiting for someone to raise the AMCI_WRITE flag.  Once that happens,
             // we'll place the user specified address and data onto the AXI bus, along with the flags that
             // indicate the address and data values are valid
             0:  if (amci_write) begin
-                    m_axi_awaddr  <= amci_waddr;
-                    m_axi_wdata   <= amci_wdata;
-                    m_axi_awvalid <= 1;
-                    m_axi_wvalid  <= 1;
-                    write_state   <= 1;
+                    saw_waddr_ready <= 0;           // The slave has not yet asserted AWREADY
+                    saw_wdata_ready <= 0;           // The slave has not yet asserted WREADY
+                    m_axi_awaddr    <= amci_waddr;  // Place our address onto the bus
+                    m_axi_wdata     <= amci_wdata;  // Place our data onto the bus
+                    m_axi_awvalid   <= 1;           // Indicate that the address is valid
+                    m_axi_wvalid    <= 1;           // Indicate that the data is valid
+                    m_axi_bready    <= 1;           // Indicate that we're ready for the slave to respond
+                    write_state     <= 1;           // On the next clock cycle, we'll be in the next state
                 end
                 
            // Here, we're waiting around for the slave to acknowledge our request by asserting M_AXI_AWREADY
-           // and M_AXI_WREADY.  Once that happens, we'll de-assert the "valid" lines.      
-           1:   if (m_axi_awvalid && M_AXI_AWREADY && m_axi_wvalid && M_AXI_WREADY) begin
-                    m_axi_wvalid  <= 0;
-                    m_axi_awvalid <= 0;
-                    write_state   <= 2;                
+           // and M_AXI_WREADY.  Once that happens, we'll de-assert the "valid" lines.  Keep in mind that we
+           // don't know what order AWREADY and WREADY will come in, and they could both come at the same
+           // time.      
+           1:   begin   
+           
+                    // Keep track of whether we have seen the slave raise AWREADY and/or WREADY         
+                    if (avalid_and_ready) saw_waddr_ready <= 1;
+                    if (wvalid_and_ready) saw_wdata_ready <= 1; 
+                    
+                    // If we've seen AWREADY (or if its raised now) and if we've seen WREADY (or if it's raised now)...
+                    if ((saw_waddr_ready || avalid_and_ready) && (saw_wdata_ready || wvalid_and_ready)) begin
+                        m_axi_awvalid <= 0;
+                        m_axi_wvalid  <= 0;
+                        write_state   <= 2;
+                    end
                 end
                 
            // Wait around for the slave to assert "M_AXI_BVALID".  When it does, we'll acknowledge
            // it by raising M_AXI_BREADY for one cycle, and go back to idle state
-           2:   if (M_AXI_BVALID) begin
-                    m_axi_bready <= 1;
+           2:   if (bvalid_and_ready) begin
+                    m_axi_bready <= 0;
                     write_state  <= 0;
                 end
-              
-        endcase
+
+            endcase
+        end
     end
     //=========================================================================================================
 
@@ -197,7 +219,7 @@ module axi4_lite_master#
 
         // Here we're waiting for the AXI slave to acknowledge that he saw us present the
         // address we wish to read from                
-        1:  if (m_axi_arvalid && M_AXI_ARREADY) begin
+        1:  if (M_AXI_ARVALID && M_AXI_ARREADY) begin
                 m_axi_arvalid <= 0;
                 read_state    <= 2;
             end
