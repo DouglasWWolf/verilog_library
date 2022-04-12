@@ -66,6 +66,7 @@ module axi4_lite_master#
 
     localparam C_AXI_DATA_BYTES = (C_AXI_DATA_WIDTH/8);
 
+
     //=========================================================================================================
     // FSM logic used for writing to the slave device.
     //
@@ -104,26 +105,28 @@ module axi4_lite_master#
     assign M_AXI_BREADY  = m_axi_bready;
     //=========================================================================================================
      
-    // Define states that say "An xVALID signal and its corresponding xREADY signal are both asserted"
-    wire avalid_and_ready = M_AXI_AWVALID & M_AXI_AWREADY;
-    wire wvalid_and_ready = M_AXI_WVALID  & M_AXI_WREADY;
-    wire bvalid_and_ready = M_AXI_BVALID  & M_AXI_BREADY;
+     // Define states that say "An xVALID signal and its corresponding xREADY signal are both asserted"
+     wire avalid_and_ready = M_AXI_AWVALID & M_AXI_AWREADY;
+     wire wvalid_and_ready = M_AXI_WVALID  & M_AXI_WREADY;
+     wire bvalid_and_ready = M_AXI_BVALID  & M_AXI_BREADY;
 
     always @(posedge M_AXI_ACLK) begin
 
-        debug <= write_state + 1;
 
+        // If we're in RESET mode...
         if (M_AXI_ARESETN == 0) begin
             write_state   <= 0;
             m_axi_awvalid <= 0;
             m_axi_wvalid  <= 0;
             m_axi_bready  <= 0;
-        end else begin
-            case (write_state)
+        end        
+        
+        // Otherwise, we're not in RESET and our state machine is running
+        else case (write_state)
             
-            // Here we're idle, waiting for someone to raise the AMCI_WRITE flag.  Once that happens,
+            // Here we're idle, waiting for someone to raise the 'amci_write' flag.  Once that happens,
             // we'll place the user specified address and data onto the AXI bus, along with the flags that
-            // indicate the address and data values are valid
+            // indicate that the address and data values are valid
             0:  if (amci_write) begin
                     saw_waddr_ready <= 0;           // The slave has not yet asserted AWREADY
                     saw_wdata_ready <= 0;           // The slave has not yet asserted WREADY
@@ -160,13 +163,13 @@ module axi4_lite_master#
                     write_state  <= 0;
                 end
 
-            endcase
-        end
+        endcase
     end
     //=========================================================================================================
 
-  
-  
+
+
+
 
     //=========================================================================================================
     // FSM logic used for reading from a slave device.
