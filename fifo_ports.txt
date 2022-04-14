@@ -1,0 +1,12 @@
+    (* X_INTERFACE_MODE = "master" *)
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_read:1.0 FIFO_READ RD_DATA" *) input[15:0] FIFO_IN,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_read:1.0 FIFO_READ EMPTY"   *) input       FIFO_EMPTY,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_read:1.0 FIFO_READ RD_EN"   *) output      FIFO_RD_EN
+
+
+
+
+    (* X_INTERFACE_MODE = "master" *)
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_WRITE WR_DATA" *) output[15:0] FIFO_OUT,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_WRITE FULL"    *) input        FIFO_FULL,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_WRITE WR_EN"   *) output       FIFO_WR_EN
