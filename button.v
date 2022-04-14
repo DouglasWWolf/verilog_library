@@ -23,7 +23,7 @@ module button#(parameter C_ACTIVE=1) (input CLK, input PIN, output Q);
     localparam ACTIVE_EDGE = C_ACTIVE ? 2'b01 : 2'b10;
     
     // All three bits of button_sync start out in the "inactive" state
-    reg [2:0] button_sync = C_ACTIVE ? 3'b000 : 3'b111;
+    (* ASYNC_REG = "TRUE" *) reg [2:0] button_sync = C_ACTIVE ? 3'b000 : 3'b111;
     
     // This count will clock down as a debounce timer
     reg [COUNTER_WIDTH-1 : 0] debounce_clock = 0;
@@ -37,7 +37,9 @@ module button#(parameter C_ACTIVE=1) (input CLK, input PIN, output Q);
         // Bit 2 is the oldest reliable state
         // Bit 1 is the newest reliable state
         // Bit 0 should be considered metastable        
-        button_sync = (button_sync << 1) | PIN;
+        button_sync[2] <= button_sync[1];
+        button_sync[1] <= button_sync[0];
+        button_sync[0] <= PIN;
         
         // Presume for the moment that we haven't detected the active-going edge of the button        
         edge_detected <= 0;       
