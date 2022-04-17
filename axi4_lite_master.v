@@ -168,9 +168,6 @@ module axi4_lite_master#
     //=========================================================================================================
 
 
-
-
-
     //=========================================================================================================
     // FSM logic used for reading from a slave device.
     //
@@ -180,7 +177,7 @@ module axi4_lite_master#
     //  At end:   Read is complete when "amci_ridle" goes high.
     //            The data read is available in amci_rdata.
     //=========================================================================================================
-    reg[1:0]                    read_state = 0;
+    reg                         read_state = 0;
 
     // FSM user interface inputs
     reg[C_AXI_ADDR_WIDTH-1:0]   amci_raddr;
@@ -192,7 +189,6 @@ module axi4_lite_master#
 
     // AXI registers and outputs
     reg[C_AXI_ADDR_WIDTH-1:0]   m_axi_araddr;
-    reg[C_AXI_DATA_WIDTH-1:0]   m_axi_rdata;
     reg                         m_axi_arvalid = 0;
     reg                         m_axi_rready;
 
@@ -202,42 +198,42 @@ module axi4_lite_master#
     assign M_AXI_ARPROT  = 3'b001;
     assign M_AXI_RREADY  = m_axi_rready;
     //=========================================================================================================
-    always @(posedge M_AXI_ACLK) begin
-    
-        // Ensure that any writes to this signal are for a single clock-pulse
-        m_axi_rready <= 0;
-    
-        if (M_AXI_ARESETN == 0) begin
+    always @(posedge CLK) begin
+         
+        if (RESETN == 0) begin
             read_state    <= 0;
             m_axi_arvalid <= 0;
+            m_axi_rready  <= 0;
+            led[5:0]      <= 0;
         end else case (read_state)
 
-        // Here we are waiting around for someone to raise "amci_read", which signals us to begin
-        // a AXI read at the address specified in "amci_raddr"
-        0:  if (amci_read) begin
-                m_axi_araddr  <= amci_raddr;
-                m_axi_arvalid <= 1;
-                read_state    <= 1;
-            end
-
-        // Here we're waiting for the AXI slave to acknowledge that he saw us present the
-        // address we wish to read from                
-        1:  if (M_AXI_ARVALID && M_AXI_ARREADY) begin
-                m_axi_arvalid <= 0;
-                read_state    <= 2;
-            end
+            // Here we are waiting around for someone to raise "amci_read", which signals us to begin
+            // a AXI read at the address specified in "amci_raddr"
+            0:  if (amci_read) begin
+                    m_axi_araddr  <= amci_raddr;
+                    m_axi_arvalid <= 1;
+                    m_axi_rready  <= 1;
+                    read_state    <= 1;
+                end else begin
+                    m_axi_arvalid <= 0;
+                    m_axi_rready  <= 0;
+                    read_state    <= 0;
+                end
             
-        // Wait around for the slave to raise M_AXI_RVALID, which tells us that M_AXI_RDATA
-        // contains the data we requested
-        2:  if (M_AXI_RVALID) begin
-                amci_rdata   <= M_AXI_RDATA;
-                m_axi_rready <= 1;
-                read_state   <= 0;
-            end
+            // Wait around for the slave to raise M_AXI_RVALID, which tells us that M_AXI_RDATA
+            // contains the data we requested
+            1:  if (M_AXI_RVALID && M_AXI_RREADY) begin
+                    amci_rdata    <= M_AXI_RDATA;
+                    m_axi_rready  <= 0;
+                    m_axi_arvalid <= 0;
+                    read_state    <= 0;
+                end
 
         endcase
     end
     //=========================================================================================================
+
+
 
 
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
