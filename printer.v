@@ -17,11 +17,10 @@
 
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 // To add a FIFO:
-//   (1) Add a set of interface lines as shown below
-//   (2) Add a set of read-registers as shown below
-//   (3) Add the case to the three "case" statements highlighted below
+//   (1) Add a "`define HAS_XX" above
+//   (2) Add the block of ports to the port list
+//   (3) Update the `ifdef/`elseif block that determines how many FIFOs there are
 //   (4) Add the xpm_fifo_sync (or xpm_fifo_async) to the bottom of this module 
-//   (5) Update the FIFO_COUNT localparam
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 
 
@@ -49,6 +48,7 @@ module printer#
     (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_01_WRITE WR_EN"   *) input        FIFO_01_WR_EN,
     `endif
 
+    // A FIFO for writing data to be printed  
     `ifdef HAS_02
     (* X_INTERFACE_MODE = "slave" *)
     (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_02_WRITE WR_DATA" *) `PBUFF_INPUT FIFO_02_IN,
@@ -56,6 +56,7 @@ module printer#
     (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_02_WRITE WR_EN"   *) input        FIFO_02_WR_EN,
     `endif
 
+    // A FIFO for writing data to be printed  
     `ifdef HAS_03
     (* X_INTERFACE_MODE = "slave" *)
     (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_03_WRITE WR_DATA" *) `PBUFF_INPUT FIFO_03_IN,
@@ -63,6 +64,7 @@ module printer#
     (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_03_WRITE WR_EN"   *) input        FIFO_03_WR_EN,
     `endif
 
+    // A FIFO for writing data to be printed  
     `ifdef HAS_04
     (* X_INTERFACE_MODE = "slave" *)
     (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_04_WRITE WR_DATA" *) `PBUFF_INPUT FIFO_04_IN,
@@ -70,6 +72,7 @@ module printer#
     (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_04_WRITE WR_EN"   *) input        FIFO_04_WR_EN,
     `endif
 
+    // A FIFO for writing data to be printed  
     `ifdef HAS_05
     (* X_INTERFACE_MODE = "slave" *)
     (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_05_WRITE WR_DATA" *) `PBUFF_INPUT FIFO_05_IN,
@@ -78,12 +81,14 @@ module printer#
     `endif
 
 
-    //================ From here down is the AXI4-Lite interface ===============
-    input wire  CLK, RESETN,
-    output wire CLK_OUT, RESETN_OUT,
-    output wire[15:0] LED,
-    output wire BLINKY,
+    input  CLK, RESETN,
+    output CLK_OUT, RESETN_OUT,
+    
+    output[15:0] LED,
+    output       BLINKY,
 
+
+    //================ From here down is the AXI4-Lite interface ===============
         
     // "Specify write address"              -- Master --    -- Slave --
     output wire [C_AXI_ADDR_WIDTH-1 : 0]    M_AXI_AWADDR,   
@@ -136,16 +141,14 @@ module printer#
     //==========================================================================
     
 
-    integer i;
-    reg[15:0] led = 16'h0000;   assign LED = led;
 
-    localparam PBUFF_CHARS = `PBUFF_CHARS;
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    //                             Beginning of AXI4 Lite Master state machines
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
     localparam C_AXI_DATA_BYTES = (C_AXI_DATA_WIDTH/8);
     
-    wire RESET = ~RESETN;
-    assign CLK_OUT = CLK;
-    assign RESETN_OUT = RESETN;
-
     //=========================================================================================================
     // FSM logic used for writing to the slave device.
     //
@@ -314,48 +317,23 @@ module printer#
     end
     //=========================================================================================================
 
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    //                               End of AXI4 Lite Master state machines
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 
-    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
-    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
-    //                             The logic to manage the FIFOs begins here
-    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
-    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
+
+
+    integer i;
+    reg[15:0] led = 16'h0000;   assign LED = led;
+
+    localparam PBUFF_CHARS = `PBUFF_CHARS;
     
-    // These registers map to the matching register in the FIFO specified by "fifo_index"
-    reg[$clog2(FIFO_COUNT)-1:0]   fifo_index = 0;
-	reg                           fifo_rd_en;
-	`PBUFF_REG                    fifo_data;
+    wire RESET = ~RESETN;
+    assign CLK_OUT = CLK;
+    assign RESETN_OUT = RESETN;
 
-    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
-    //      Everything in this block describes registers for reading each FIFO
-    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
-    `PBUFF_WIRE fifo_00_data;
-    wire        fifo_00_rd_en = (fifo_index == 0 & fifo_rd_en);
-
-
-    `PBUFF_WIRE fifo_01_data;
-    wire        fifo_01_rd_en = (fifo_index == 1 & fifo_rd_en);
-    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
-    //                                 End of per-FIFO registers
-    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
-
-
-    wire fifo_data_valid[0:FIFO_COUNT-1];
-    wire      fifo_empty[0:FIFO_COUNT-1];
-    //==================================================================================================================
-    // If you add or remove a FIFO, the appropriate case must be added or removed to/from these three "case" statements
-    //==================================================================================================================	
-	
-	always @(*) begin
-	   fifo_data <= 0;
-	   case (fifo_index)
-	   0:  fifo_data <= fifo_00_data;
-	   1:  fifo_data <= fifo_01_data;
-	   endcase
-	end
-
-    //==================================================================================================================
-	
 
 
     //==================================================================================================================
@@ -531,32 +509,39 @@ module printer#
     // This block of code performs a round-robin scan of the FIFOs, and when it finds one that isn't empty, it reads
     // the FIFO and hands the FIFO data off to the state machine that transmits it to the UART a single byte at a time.
     //==================================================================================================================
-    reg       reader_state = 0;
-    
+    reg[2:0]                    reader_state;
+    reg[$clog2(FIFO_COUNT)-1:0] fifo_index;
+    reg                         fifo_rd_en[0:FIFO_COUNT-1];
+    wire                        fifo_valid[0:FIFO_COUNT-1];
+    wire                        fifo_empty[0:FIFO_COUNT-1];
+    `PBUFF_WIRE                 fifo_data [0:FIFO_COUNT-1];
+
     always @(posedge CLK) begin
-        fifo_rd_en    <= 0;
         printer_start <= 0;
+        for (i=0; i<FIFO_COUNT; i=i+1) fifo_rd_en[i] <= 0;
 
         if (RESETN == 0) begin
             fifo_index   <= 0;
-            reader_state <= 0;
-            led[9] <= 0;
-        end else begin
+            reader_state <= 3'b001;
+        end else begin 
             case (reader_state)
             
-            0:  if (fifo_empty[fifo_index]) begin
-                    fifo_index <= (fifo_index == FIFO_COUNT-1) ? 0: fifo_index + 1;
-                end else begin
-                    fifo_rd_en   <= 1;
-                    reader_state <= 1;
-                end
+            3'b001: if (printer_idle) begin
+                        reader_state <= 3'b010;
+                    end
+
+            3'b010: if (fifo_empty[fifo_index]) begin
+                        fifo_index <= (fifo_index == FIFO_COUNT-1) ? 0: fifo_index + 1;
+                    end else begin
+                        fifo_rd_en[fifo_index] <= 1;
+                        reader_state           <= 3'b100;
+                    end
                 
-            1:  if (fifo_data_valid[fifo_index]) begin
-                    //?print_buffer  <= fifo_data;
-                    printer_start <= 1;
-                    reader_state  <= 0;
-                    led[9] <= 1;
-                end
+            3'b100: if (fifo_valid[fifo_index]) begin
+                        //?print_buffer  <= fifo_data;
+                        printer_start <= 1;
+                        reader_state  <= 3'b001;
+                    end
             
             endcase
         end
@@ -602,15 +587,15 @@ module printer#
     )
     xpm_fifo_00
     (
-        .rst        (RESET             ),                      
-        .full       (FIFO_00_FULL      ),              
-        .din        (FIFO_00_IN        ),                 
-        .wr_en      (FIFO_00_WR_EN     ),            
-        .wr_clk     (CLK               ),          
-        .data_valid (fifo_data_valid[0]),  
-        .dout       (fifo_00_data      ),              
-        .empty      (fifo_empty[0]     ),            
-        .rd_en      (fifo_00_rd_en     ),            
+        .rst        (RESET        ),                      
+        .full       (FIFO_00_FULL ),              
+        .din        (FIFO_00_IN   ),                 
+        .wr_en      (FIFO_00_WR_EN),            
+        .wr_clk     (CLK          ),          
+        .data_valid (fifo_valid[0]),  
+        .dout       (fifo_data [0]),              
+        .empty      (fifo_empty[0]),            
+        .rd_en      (fifo_rd_en[0]),            
 
       //------------------------------------------------------------
       // This only exists in xpm_fifo_async, not in xpm_fifo_sync
@@ -671,15 +656,15 @@ module printer#
     )
     xpm_fifo_01
     (
-        .rst        (RESET             ),                      
-        .full       (FIFO_01_FULL      ),              
-        .din        (FIFO_01_IN        ),                 
-        .wr_en      (FIFO_01_WR_EN     ),            
-        .wr_clk     (CLK               ),          
-        .data_valid (fifo_data_valid[1]),  
-        .dout       (fifo_01_data      ),              
-        .empty      (fifo_empty[1]     ),            
-        .rd_en      (fifo_01_rd_en     ),            
+        .rst        (RESET        ),                      
+        .full       (FIFO_01_FULL ),              
+        .din        (FIFO_01_IN   ),                 
+        .wr_en      (FIFO_01_WR_EN),            
+        .wr_clk     (CLK          ),          
+        .data_valid (fifo_valid[1]),  
+        .dout       (fifo_data [1]),              
+        .empty      (fifo_empty[1]),            
+        .rd_en      (fifo_rd_en[1]),            
 
       //------------------------------------------------------------
       // This only exists in xpm_fifo_async, not in xpm_fifo_sync
