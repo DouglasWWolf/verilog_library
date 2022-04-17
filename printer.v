@@ -329,6 +329,7 @@ module printer#
     reg[15:0] led = 16'h0000;   assign LED = led;
 
     localparam PBUFF_CHARS = `PBUFF_CHARS;
+    localparam PBUFF_SIZE  = `PBUFF_SIZE;
     
     wire RESET = ~RESETN;
     assign CLK_OUT = CLK;
@@ -401,25 +402,6 @@ module printer#
     //==================================================================================================================
   
   
-  /*
-    //==================================================================================================================
-    // This takes "char_index" as an input, and fills in "indexed_byte" with the byte at that index in the input string
-    //==================================================================================================================
-    reg[$clog2(PBUFF_CHARS):0]   char_index;
-    reg[7:0]                     indexed_byte;
-    `PBUFF_REG                   print_buffer;
-    //==================================================================================================================
-    integer i;
-    always @(*) begin
-        indexed_byte <= 0;
-        for (i=0; i<PBUFF_CHARS; i=i+1) begin
-            if (char_index == i) begin
-                indexed_byte <= print_buffer[((PBUFF_CHARS-1) -i)*8 +: 8];            
-            end
-        end
-    end
-    //==================================================================================================================
-  */
   
     reg[7:0] print_buffer[0:PBUFF_CHARS-1];
     //==================================================================================================================
@@ -445,11 +427,18 @@ module printer#
     always @(posedge CLK) begin
         transmit_start <= 0;
 
+        /*
         for (i=0; i<PBUFF_CHARS; i=i+1) begin
              print_buffer[i] <= 0;
         end
-        print_buffer[PBUFF_CHARS-1] <= "Y";
-        print_buffer[PBUFF_CHARS-2] <= "X";       
+        print_buffer[PBUFF_CHARS-7] <= "X";
+        print_buffer[PBUFF_CHARS-6] <= "Y";
+        print_buffer[PBUFF_CHARS-5] <= "Z";       
+        print_buffer[PBUFF_CHARS-4] <= "Q";       
+        print_buffer[PBUFF_CHARS-3] <= "A";       
+        print_buffer[PBUFF_CHARS-2] <= "\r";       
+        print_buffer[PBUFF_CHARS-1] <= "\n";       
+        */
 
         if (RESETN == 0) begin
             printer_state  <= s_IDLE;
@@ -516,6 +505,8 @@ module printer#
     wire                        fifo_empty[0:FIFO_COUNT-1];
     `PBUFF_WIRE                 fifo_data [0:FIFO_COUNT-1];
 
+    `PBUFF_REG  fixed = "Hello World\r\n";
+
     always @(posedge CLK) begin
         printer_start <= 0;
         for (i=0; i<FIFO_COUNT; i=i+1) fifo_rd_en[i] <= 0;
@@ -538,7 +529,9 @@ module printer#
                     end
                 
             3'b100: if (fifo_valid[fifo_index]) begin
-                        //?print_buffer  <= fifo_data;
+                        for (i=0; i<PBUFF_CHARS; i=i+1) begin
+                            print_buffer[i] = fifo_data[fifo_index][(PBUFF_CHARS-1-i)*8 +: 8];
+                        end
                         printer_start <= 1;
                         reader_state  <= 3'b001;
                     end
@@ -547,10 +540,6 @@ module printer#
         end
     end
     //==================================================================================================================
-
-
-
-
 
 
 
