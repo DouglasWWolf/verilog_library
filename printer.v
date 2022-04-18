@@ -35,49 +35,49 @@ module printer#
     // A FIFO for writing data to be printed  
     `ifdef HAS_00
     (* X_INTERFACE_MODE = "slave" *)
-    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_00_WRITE WR_DATA" *) `PBUFF_INPUT FIFO_00_IN,
-    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_00_WRITE FULL"    *) output       FIFO_00_FULL,
-    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_00_WRITE WR_EN"   *) input        FIFO_00_WR_EN,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_00_WRITE WR_DATA" *) `PFRAME_INPUT FIFO_00_IN,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_00_WRITE FULL"    *) output        FIFO_00_FULL,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_00_WRITE WR_EN"   *) input         FIFO_00_WR_EN,
     `endif
 
     // A FIFO for writing data to be printed  
     `ifdef HAS_01
     (* X_INTERFACE_MODE = "slave" *)
-    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_01_WRITE WR_DATA" *) `PBUFF_INPUT FIFO_01_IN,
-    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_01_WRITE FULL"    *) output       FIFO_01_FULL,
-    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_01_WRITE WR_EN"   *) input        FIFO_01_WR_EN,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_01_WRITE WR_DATA" *) `PFRAME_INPUT FIFO_01_IN,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_01_WRITE FULL"    *) output        FIFO_01_FULL,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_01_WRITE WR_EN"   *) input         FIFO_01_WR_EN,
     `endif
 
     // A FIFO for writing data to be printed  
     `ifdef HAS_02
     (* X_INTERFACE_MODE = "slave" *)
-    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_02_WRITE WR_DATA" *) `PBUFF_INPUT FIFO_02_IN,
-    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_02_WRITE FULL"    *) output       FIFO_02_FULL,
-    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_02_WRITE WR_EN"   *) input        FIFO_02_WR_EN,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_02_WRITE WR_DATA" *) `PFRAME_INPUT FIFO_02_IN,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_02_WRITE FULL"    *) output        FIFO_02_FULL,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_02_WRITE WR_EN"   *) input         FIFO_02_WR_EN,
     `endif
 
     // A FIFO for writing data to be printed  
     `ifdef HAS_03
     (* X_INTERFACE_MODE = "slave" *)
-    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_03_WRITE WR_DATA" *) `PBUFF_INPUT FIFO_03_IN,
-    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_03_WRITE FULL"    *) output       FIFO_03_FULL,
-    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_03_WRITE WR_EN"   *) input        FIFO_03_WR_EN,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_03_WRITE WR_DATA" *) `PFRAME_INPUT FIFO_03_IN,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_03_WRITE FULL"    *) output        FIFO_03_FULL,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_03_WRITE WR_EN"   *) input         FIFO_03_WR_EN,
     `endif
 
     // A FIFO for writing data to be printed  
     `ifdef HAS_04
     (* X_INTERFACE_MODE = "slave" *)
-    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_04_WRITE WR_DATA" *) `PBUFF_INPUT FIFO_04_IN,
-    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_04_WRITE FULL"    *) output       FIFO_04_FULL,
-    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_04_WRITE WR_EN"   *) input        FIFO_04_WR_EN,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_04_WRITE WR_DATA" *) `PFRAME_INPUT FIFO_04_IN,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_04_WRITE FULL"    *) output        FIFO_04_FULL,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_04_WRITE WR_EN"   *) input         FIFO_04_WR_EN,
     `endif
 
     // A FIFO for writing data to be printed  
     `ifdef HAS_05
     (* X_INTERFACE_MODE = "slave" *)
-    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_05_WRITE WR_DATA" *) `PBUFF_INPUT FIFO_05_IN,
-    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_05_WRITE FULL"    *) output       FIFO_05_FULL,
-    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_05_WRITE WR_EN"   *) input        FIFO_05_WR_EN,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_05_WRITE WR_DATA" *) `PFRAME_INPUT FIFO_05_IN,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_05_WRITE FULL"    *) output        FIFO_05_FULL,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_05_WRITE WR_EN"   *) input         FIFO_05_WR_EN,
     `endif
 
 
@@ -328,9 +328,10 @@ module printer#
     integer i;
     reg[15:0] led = 16'h0000;   assign LED = led;
 
-    localparam PBUFF_CHARS = `PBUFF_CHARS;
-    localparam PBUFF_SIZE  = `PBUFF_SIZE;
-    
+    localparam PBUFF_CHARS  = `PBUFF_CHARS;
+    localparam PFRAME_WIDTH = `PFRAME_WIDTH;
+    localparam PFMT_WIDTH   = `PFMT_WIDTH;
+
     wire RESET = ~RESETN;
     assign CLK_OUT = CLK;
     assign RESETN_OUT = RESETN;
@@ -384,10 +385,10 @@ module printer#
                     led[13] <= 1;
                     if (amci_rdata[3]) begin
                         amci_read <= 1;
-                    end else begin
+                    end else begin 
                         transmit_state <= 3;
                     end
-                end
+                end 
                     
             // Finally, stuff the byte in "transmit_data" into the UART's TX FIFO
             3:  if (amci_widle) begin
@@ -403,7 +404,10 @@ module printer#
   
   
   
-    reg[7:0] print_buffer[0:PBUFF_CHARS-1];
+    reg[7:0]                 print_buffer[0:PBUFF_CHARS-1];
+    reg[PBUFF_CHARS*8-1 : 0] printer_bits;
+    reg[PFMT_WIDTH-1    : 0] printer_fmt;        
+
     //==================================================================================================================
     // This state machine loops through the input string, transmitting each byte in turn until they've all been
     // transmitted.
@@ -418,6 +422,9 @@ module printer#
     localparam s_TRANSMIT_CHAR      = 2;
     localparam s_WAIT_FOR_TRANSMIT  = 3;
     localparam s_END_OF_INPUT       = 4;
+    localparam s_TRANSMIT_LINEFEED  = 5;
+
+    localparam CRLF_BIT             = 11;
 
     reg[$clog2(PBUFF_CHARS):0]      char_index;
     reg[2:0]                        printer_state;
@@ -448,6 +455,9 @@ module printer#
             // In IDLE mode, we're waiting around for the "START" signal to go high
             s_IDLE: 
                 if (printer_start) begin
+                    for (i=0; i<PBUFF_CHARS; i=i+1) begin
+                        print_buffer[i] <= printer_bits[(PBUFF_CHARS-1-i)*8 +: 8];
+                    end
                     char_index    <= 0;
                     printer_state <= s_LOOK_FOR_FNZ;
                 end                       
@@ -472,7 +482,7 @@ module printer#
             
             // Wait for the transmit to complete, and either go fetch the next character, or be done
             s_WAIT_FOR_TRANSMIT:
-                if (transmit_start == 0 && transmit_done == 1) begin
+                if (transmit_done) begin
                     if (char_index == PBUFF_CHARS -1) begin
                         printer_state <= s_END_OF_INPUT;
                     end else begin
@@ -480,12 +490,25 @@ module printer#
                         printer_state <= s_TRANSMIT_CHAR;
                     end
                 end
-                
+    
+            // If we need to print a CRLF, wait for the transmitter to go idle then transmit a carriage-return
             s_END_OF_INPUT:
-                    begin
-                        printer_state <= s_IDLE;
-                    end
-   
+                if (printer_fmt[CRLF_BIT] == 0) begin
+                    printer_state = s_IDLE;
+                end else if (transmit_done) begin
+                    transmit_data  <= "\r";
+                    transmit_start <= 1;
+                    printer_state  <= s_TRANSMIT_LINEFEED;
+                end
+
+            // Wait for the transmitter to go idle, then transmit a linefeed
+            s_TRANSMIT_LINEFEED:
+                if (transmit_done) begin
+                    transmit_data  <= "\n";
+                    transmit_start <= 1;
+                    printer_state  <= s_IDLE;
+                end
+
            endcase
         end
     end
@@ -503,11 +526,9 @@ module printer#
     reg                         fifo_rd_en[0:FIFO_COUNT-1];
     wire                        fifo_valid[0:FIFO_COUNT-1];
     wire                        fifo_empty[0:FIFO_COUNT-1];
-    `PBUFF_WIRE                 fifo_data [0:FIFO_COUNT-1];
+    `PFRAME_WIRE                fifo_data [0:FIFO_COUNT-1];
 
-    `PBUFF_REG  fixed = "Hello World\r\n";
-
-    always @(posedge CLK) begin
+        always @(posedge CLK) begin
         printer_start <= 0;
         for (i=0; i<FIFO_COUNT; i=i+1) fifo_rd_en[i] <= 0;
 
@@ -529,11 +550,9 @@ module printer#
                     end
                 
             3'b100: if (fifo_valid[fifo_index]) begin
-                        for (i=0; i<PBUFF_CHARS; i=i+1) begin
-                            print_buffer[i] = fifo_data[fifo_index][(PBUFF_CHARS-1-i)*8 +: 8];
-                        end
-                        printer_start <= 1;
-                        reader_state  <= 3'b001;
+                        {printer_bits, printer_fmt} <= fifo_data[fifo_index];
+                        printer_start               <= 1;
+                        reader_state                <= 3'b001;
                     end
             
             endcase
@@ -550,23 +569,23 @@ module printer#
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
     xpm_fifo_sync #
     (
-      .CASCADE_HEIGHT(0),        // DECIMAL
-      .DOUT_RESET_VALUE("0"),    // String
-      .ECC_MODE("no_ecc"),       // String
-      .FIFO_MEMORY_TYPE("auto"), // String
-      .FIFO_READ_LATENCY(1),     // DECIMAL
-      .FIFO_WRITE_DEPTH(256),    // DECIMAL
-      .FULL_RESET_VALUE(0),      // DECIMAL
-      .PROG_EMPTY_THRESH(10),    // DECIMAL
-      .PROG_FULL_THRESH(10),     // DECIMAL
-      .RD_DATA_COUNT_WIDTH(1),   // DECIMAL
-      .READ_DATA_WIDTH(`PBUFF_SIZE),
-      .READ_MODE("std"),         // String
-      .SIM_ASSERT_CHK(0),        // DECIMAL; 0=disable simulation messages, 1=enable simulation messages
-      .USE_ADV_FEATURES("1000"), // String; 1000 = "Enable the data_valid flag"
-      .WAKEUP_TIME(0),           // DECIMAL
-      .WRITE_DATA_WIDTH(`PBUFF_SIZE), 
-      .WR_DATA_COUNT_WIDTH(1)    // DECIMAL
+      .CASCADE_HEIGHT       (0),       
+      .DOUT_RESET_VALUE     ("0"),    
+      .ECC_MODE             ("no_ecc"),       
+      .FIFO_MEMORY_TYPE     ("auto"), 
+      .FIFO_READ_LATENCY    (1),     
+      .FIFO_WRITE_DEPTH     (256),    
+      .FULL_RESET_VALUE     (0),      
+      .PROG_EMPTY_THRESH    (10),    
+      .PROG_FULL_THRESH     (10),     
+      .RD_DATA_COUNT_WIDTH  (1),   
+      .READ_DATA_WIDTH      (PFRAME_WIDTH),
+      .READ_MODE            ("std"),         
+      .SIM_ASSERT_CHK       (0),        
+      .USE_ADV_FEATURES     ("1000"), 
+      .WAKEUP_TIME          (0),           
+      .WRITE_DATA_WIDTH     (PFRAME_WIDTH), 
+      .WR_DATA_COUNT_WIDTH  (1)    
 
       //------------------------------------------------------------
       // These exist only in xpm_fifo_async, not in xpm_fifo_sync
@@ -619,23 +638,23 @@ module printer#
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
     xpm_fifo_sync #
     (
-      .CASCADE_HEIGHT(0),        // DECIMAL
-      .DOUT_RESET_VALUE("0"),    // String
-      .ECC_MODE("no_ecc"),       // String
-      .FIFO_MEMORY_TYPE("auto"), // String
-      .FIFO_READ_LATENCY(1),     // DECIMAL
-      .FIFO_WRITE_DEPTH(256),    // DECIMAL
-      .FULL_RESET_VALUE(0),      // DECIMAL
-      .PROG_EMPTY_THRESH(10),    // DECIMAL
-      .PROG_FULL_THRESH(10),     // DECIMAL
-      .RD_DATA_COUNT_WIDTH(1),   // DECIMAL
-      .READ_DATA_WIDTH(`PBUFF_SIZE),
-      .READ_MODE("std"),         // String
-      .SIM_ASSERT_CHK(0),        // DECIMAL; 0=disable simulation messages, 1=enable simulation messages
-      .USE_ADV_FEATURES("1000"), // String; 1000 = "Enable the data_valid flag"
-      .WAKEUP_TIME(0),           // DECIMAL
-      .WRITE_DATA_WIDTH(`PBUFF_SIZE), 
-      .WR_DATA_COUNT_WIDTH(1)    // DECIMAL
+      .CASCADE_HEIGHT(0),
+      .DOUT_RESET_VALUE     ("0"),  
+      .ECC_MODE             ("no_ecc"),     
+      .FIFO_MEMORY_TYPE     ("auto"), 
+      .FIFO_READ_LATENCY    (1),     
+      .FIFO_WRITE_DEPTH     (256),    
+      .FULL_RESET_VALUE     (0),      
+      .PROG_EMPTY_THRESH    (10),    
+      .PROG_FULL_THRESH     (10),     
+      .RD_DATA_COUNT_WIDTH  (1),   
+      .READ_DATA_WIDTH      (PFRAME_WIDTH),
+      .READ_MODE            ("std"),         
+      .SIM_ASSERT_CHK       (0),        
+      .USE_ADV_FEATURES     ("1000"), 
+      .WAKEUP_TIME          (0),           
+      .WRITE_DATA_WIDTH     (PFRAME_WIDTH), 
+      .WR_DATA_COUNT_WIDTH  (1)   
 
       //------------------------------------------------------------
       // These exist only in xpm_fifo_async, not in xpm_fifo_sync
