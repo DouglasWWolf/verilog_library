@@ -288,7 +288,6 @@ module printer#
             read_state    <= 0;
             m_axi_arvalid <= 0;
             m_axi_rready  <= 0;
-            led[5:0]      <= 0;
         end else case (read_state)
 
             // Here we are waiting around for someone to raise "amci_read", which signals us to begin
@@ -324,9 +323,10 @@ module printer#
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 
 
-
+ 
     integer i;
-    reg[15:0] led = 16'h0000;   assign LED = led;
+    reg[15:0] led = 0;   assign LED = led;
+    reg blinky = 0; assign BLINKY = blinky;
 
     localparam PBUFF_CHARS  = `PBUFF_CHARS;
     localparam PFRAME_WIDTH = `PFRAME_WIDTH;
@@ -337,7 +337,13 @@ module printer#
     assign RESETN_OUT = RESETN;
 
 
+    wire[7:0] ascii[0:15];
+    assign ascii[00] = "0"; assign ascii[01] = "1";  assign ascii[02] = "2";  assign ascii[03] = "3";
+    assign ascii[04] = "4"; assign ascii[05] = "5";  assign ascii[06] = "6";  assign ascii[07] = "7";
+    assign ascii[08] = "8"; assign ascii[09] = "9";  assign ascii[10] = "a";  assign ascii[11] = "b";
+    assign ascii[12] = "c"; assign ascii[13] = "d";  assign ascii[14] = "e";  assign ascii[15] = "f";
 
+     
     //==================================================================================================================
     // This state machine waits for someone to raise the "transmit_start" signal, then sends the byte in register  
     // "transmit_data" to the UART TX FIFO.
@@ -345,16 +351,14 @@ module printer#
     // Note that there are only four states in this machine, and they always proceed in order:
     //       state 0, then state 1, then state 2, then state 3, then back to state 0
     //==================================================================================================================
-    reg[1:0] transmit_state = 0;
-    
-    // Set this to 1 to start the "Fetch the TX FIFO status" state machine
-    reg      transmit_start = 0;
-    
-    // This is the byte that will be transmitted to the UART
+    //public:
     reg[7:0] transmit_data;
-    
-    // When this goes high, the character has been stuffed into the UART's TX FIFO
-    wire transmit_done = transmit_start == 0 && transmit_state == 0;
+    reg      transmit_start;
+    wire     transmit_idle; 
+    //-----------------------------------------------------------------------------------------------------------------------
+    // private:
+    reg[1:0] transmit_state;
+    assign transmit_idle = transmit_start == 0 && transmit_state == 0;
 
     // UART AXI register definitions
     localparam UART_TX_FIFO_REG = 4;
@@ -382,7 +386,6 @@ module printer#
             // Wait for the UART TX FIFO status to be returned, then either start another status read (if it's full),
             // or advance to the next state    
             2:  if (amci_ridle) begin
-                    led[13] <= 1;
                     if (amci_rdata[3]) begin
                         amci_read <= 1;
                     end else begin 
@@ -403,20 +406,24 @@ module printer#
     //==================================================================================================================
   
   
-  
-    reg[7:0]                 print_buffer[0:PBUFF_CHARS-1];
-    reg[PBUFF_CHARS*8-1 : 0] printer_bits;
-    reg[PFMT_WIDTH-1    : 0] printer_fmt;        
-
+   
+    
     //==================================================================================================================
     // This state machine loops through the input string, transmitting each byte in turn until they've all been
     // transmitted.
     //
-    // To start:    string to be printed is right-justified in "print_buffer"
+    // To start:    string to be printed is right-justified in "printer_inp[]"
     //              raise "printer_start"
     // 
     // At end:      "printer_idle" will go high 
     //==================================================================================================================
+    // public:
+    reg[7:0]              printer_inp[0:PBUFF_CHARS-1];
+    reg[PFMT_WIDTH-1 : 0] printer_fmt;        
+    reg                   printer_start;     
+    wire                  printer_idle;
+    //-----------------------------------------------------------------------------------------------------------------------
+    // private:
     localparam s_IDLE               = 0;
     localparam s_LOOK_FOR_FNZ       = 1;
     localparam s_TRANSMIT_CHAR      = 2;
@@ -424,28 +431,14 @@ module printer#
     localparam s_END_OF_INPUT       = 4;
     localparam s_TRANSMIT_LINEFEED  = 5;
 
-    localparam CRLF_BIT             = 11;
+    localparam CRLF_BIT             = 15;
 
     reg[$clog2(PBUFF_CHARS):0]      char_index;
     reg[2:0]                        printer_state;
-    reg                             printer_start;     
-    wire                            printer_idle = (printer_state == s_IDLE && ~printer_start);     
+    assign printer_idle = (printer_state == s_IDLE && printer_start == 0);     
     //-----------------------------------------------------------------------------------------------------------------------
     always @(posedge CLK) begin
         transmit_start <= 0;
-
-        /*
-        for (i=0; i<PBUFF_CHARS; i=i+1) begin
-             print_buffer[i] <= 0;
-        end
-        print_buffer[PBUFF_CHARS-7] <= "X";
-        print_buffer[PBUFF_CHARS-6] <= "Y";
-        print_buffer[PBUFF_CHARS-5] <= "Z";       
-        print_buffer[PBUFF_CHARS-4] <= "Q";       
-        print_buffer[PBUFF_CHARS-3] <= "A";       
-        print_buffer[PBUFF_CHARS-2] <= "\r";       
-        print_buffer[PBUFF_CHARS-1] <= "\n";       
-        */
 
         if (RESETN == 0) begin
             printer_state  <= s_IDLE;
@@ -455,9 +448,6 @@ module printer#
             // In IDLE mode, we're waiting around for the "START" signal to go high
             s_IDLE: 
                 if (printer_start) begin
-                    for (i=0; i<PBUFF_CHARS; i=i+1) begin
-                        print_buffer[i] <= printer_bits[(PBUFF_CHARS-1-i)*8 +: 8];
-                    end
                     char_index    <= 0;
                     printer_state <= s_LOOK_FOR_FNZ;
                 end                       
@@ -466,7 +456,7 @@ module printer#
             s_LOOK_FOR_FNZ:
                 if (char_index == PBUFF_CHARS) begin
                     printer_state <= s_IDLE;
-                end else if (print_buffer[char_index] == 0)
+                end else if (printer_inp[char_index] == 0)
                     char_index <= char_index + 1;
                 else begin
                     printer_state <= s_TRANSMIT_CHAR;        
@@ -475,14 +465,14 @@ module printer#
             // Transmit a character
             s_TRANSMIT_CHAR:
                 begin 
-                    transmit_data   <= print_buffer[char_index];
+                    transmit_data   <= printer_inp[char_index];
                     transmit_start  <= 1;
                     printer_state   <= s_WAIT_FOR_TRANSMIT;
                 end
             
             // Wait for the transmit to complete, and either go fetch the next character, or be done
             s_WAIT_FOR_TRANSMIT:
-                if (transmit_done) begin
+                if (transmit_idle) begin
                     if (char_index == PBUFF_CHARS -1) begin
                         printer_state <= s_END_OF_INPUT;
                     end else begin
@@ -495,7 +485,7 @@ module printer#
             s_END_OF_INPUT:
                 if (printer_fmt[CRLF_BIT] == 0) begin
                     printer_state = s_IDLE;
-                end else if (transmit_done) begin
+                end else if (transmit_idle) begin
                     transmit_data  <= "\r";
                     transmit_start <= 1;
                     printer_state  <= s_TRANSMIT_LINEFEED;
@@ -503,7 +493,7 @@ module printer#
 
             // Wait for the transmitter to go idle, then transmit a linefeed
             s_TRANSMIT_LINEFEED:
-                if (transmit_done) begin
+                if (transmit_idle) begin
                     transmit_data  <= "\n";
                     transmit_start <= 1;
                     printer_state  <= s_IDLE;
@@ -515,21 +505,88 @@ module printer#
     //==================================================================================================================
  
 
+
+    //==================================================================================================================
+    // translate: translates the bits in "translate_inp" into a sequence of ASCII characters in "printer_inp", then
+    //            tells the printer to print them.
+    //
+    //  At start:   translate_inp = The bits to be translated to ASCII and printed.
+    //              translate_fmt = The format specifier to convert the bits to ASCII
+    //
+    //  Bits [14:12] in translate_fmt are a type-specifier.   If the type-specifier is 0, the entire input field 
+    //               is assumed to contain ASCII characters.  If the type-specifier is anything else, the entire input
+    //               field except for the last 8 bytes (i.e., 64 bits) is assumed to contain ASCII characters
+    //==================================================================================================================
+    // public:
+    reg[PBUFF_CHARS*8-1:0]  translate_inp;
+    reg[PFMT_WIDTH-1   :0]  translate_fmt;
+    reg                     translate_start;
+    wire                    translate_idle;
+    //------------------------------------------------------------------------------------------------------------------
+    // private:
+    reg[1:0]                translate_state;
+    assign                  translate_idle = (translate_state == 0 && translate_start == 0);
+    //------------------------------------------------------------------------------------------------------------------
+    always @(posedge CLK) begin
+        printer_start <= 0;
+        
+        if (RESETN == 0) begin
+            translate_state = 0; 
+        end else case(translate_state)
+
+            // Wait for someone to raise "start", and when they do, clear the print buffer
+            0:  if (translate_start) begin
+                    for (i=0; i<PBUFF_CHARS; i=i+1) printer_inp[i] <= 0;
+                    translate_state <= 1;
+                    led <= translate_fmt;
+                end
+
+            // Dependent on whether this message contains a binary value, copy either the
+            // entire "translate_bits" into the print buffer, or copy everything except the
+            // 8 byte (i.e., 64-bit) numeric value into the print buffer.   The message ends
+            // up right-justified in the print buffer.
+            1:  begin
+                    if (translate_fmt[14:12] == 0) begin
+                        for (i=0; i<PBUFF_CHARS; i=i+1) begin
+                            printer_inp[i] <= translate_inp[(PBUFF_CHARS-1-i)*8 +: 8];
+                        end
+                    end else begin
+                        for (i=0; i<PBUFF_CHARS-8; i=i+1) begin
+                            printer_inp[i+8] <= translate_inp[(PBUFF_CHARS-1-i)*8 +: 8];
+                        end
+                    end
+                    printer_fmt     <= translate_fmt;
+                    printer_start   <= 1;
+                    translate_state <= 2;
+                end
+
+            // Wait for the printer to go idle, and when it does, this FSM returns to idle
+            2:  if (printer_idle) translate_state <= 0;
+
+        endcase
+    end
+    //==================================================================================================================
+
+ 
+
  
 
     //==================================================================================================================
     // This block of code performs a round-robin scan of the FIFOs, and when it finds one that isn't empty, it reads
     // the FIFO and hands the FIFO data off to the state machine that transmits it to the UART a single byte at a time.
     //==================================================================================================================
+    // private:
     reg[2:0]                    reader_state;
     reg[$clog2(FIFO_COUNT)-1:0] fifo_index;
     reg                         fifo_rd_en[0:FIFO_COUNT-1];
     wire                        fifo_valid[0:FIFO_COUNT-1];
     wire                        fifo_empty[0:FIFO_COUNT-1];
     `PFRAME_WIRE                fifo_data [0:FIFO_COUNT-1];
-
-        always @(posedge CLK) begin
-        printer_start <= 0;
+    //------------------------------------------------------------------------------------------------------------------
+    always @(posedge CLK) begin
+        
+        // By default, these are low at the start of every clock cycle
+        translate_start <= 0;
         for (i=0; i<FIFO_COUNT; i=i+1) fifo_rd_en[i] <= 0;
 
         if (RESETN == 0) begin
@@ -538,7 +595,7 @@ module printer#
         end else begin 
             case (reader_state)
             
-            3'b001: if (printer_idle) begin
+            3'b001: if (translate_idle) begin
                         reader_state <= 3'b010;
                     end
 
@@ -550,8 +607,8 @@ module printer#
                     end
                 
             3'b100: if (fifo_valid[fifo_index]) begin
-                        {printer_bits, printer_fmt} <= fifo_data[fifo_index];
-                        printer_start               <= 1;
+                        {translate_inp, translate_fmt} <= fifo_data[fifo_index];
+                        translate_start             <= 1;
                         reader_state                <= 3'b001;
                     end
             

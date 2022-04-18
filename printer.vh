@@ -8,10 +8,11 @@
 `define PFRAME_REG       reg[`PFRAME_WIDTH-1:0]
 `define PFRAME_WIRE     wire[`PFRAME_WIDTH-1:0]
 
-`define PFMT_STR  16'h8000
-`define PFMT_HEX  16'h9000
-`define PFMT_BIN  16'hA000
-`define PFMT_DEC  16'hB000
-`define PFMT_CRLF 16'h0800
+
+`define PFMT_STR  16'h0000
+`define PFMT_HEX  16'h1000
+`define PFMT_BIN  16'h2000
+`define PFMT_DEC  16'h3000
+`define PFMT_CRLF 16'h8000
 
 
