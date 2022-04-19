@@ -23,6 +23,110 @@
 //   (4) Add the xpm_fifo_sync (or xpm_fifo_async) to the bottom of this module 
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 
+//=========================================================================================================
+// to_ascii_hex: FSM that converts a 64-bit number to ASCII hex
+//
+// The output RESULT field should be large enough to accommidate 19 8-bit characters
+//=========================================================================================================
+module to_ascii_hex
+(
+    input            CLK, RESETN,
+    input[63:0]      VALUE,
+    input[7:0]       DIGITS_OUT,
+    input            NOSEP,
+    input            START,
+    output[19*8-1:0] RESULT,
+    output           IDLE
+);
+
+    integer i;
+    localparam MAX_OUT_CHARS  = 19;
+    localparam MAX_INP_DIGITS = 16;
+
+    reg[7:0] result[0:MAX_OUT_CHARS-1];    // Holds the resulting ASCII characters
+    reg[3:0] value[0:MAX_INP_DIGITS-1];    // Holds the input value, one nybble per slot
+    reg      state;
+    reg[4:0] src_idx, dst_idx, digits_out, max_digits_out;
+
+    //=============================================================================
+    // ascii() - Returns the ASCII character that corresponds to the input nybble
+    //=============================================================================
+    function [7:0] ascii(input[3:0] nybble);
+        ascii = nybble > 9 ? nybble + 87 : nybble + 48;
+    endfunction
+    //=============================================================================
+
+    //=====================================================================================================
+    // FSM that converts the 64-bit number in VALUE to a series of ASCII digits right justified in both
+    // "result" and "RESULT"
+    //=====================================================================================================
+    always @(posedge CLK) begin
+        if (RESETN == 0) begin
+            state <= 0;
+        end else begin
+            case(state)
+                0:  if (START) begin
+                        // Clear the result character buffer to all zeros
+                        for (i=0; i<MAX_OUT_CHARS; i=i+1) result[i] = 0;
+                        
+                        // Convert the packed input VALUE into an unpacked array of 4-bit values
+                        for (i=0; i<MAX_INP_DIGITS; i=i+1) value[i] <= VALUE[4*(MAX_INP_DIGITS-1-i) +: 4];
+                        
+                        // Determine the maximum number of digits we should output
+                        max_digits_out <= (DIGITS_OUT == 0) ? 8 : DIGITS_OUT;
+                        
+                        // As we copy characters from "value" to "result", start at the rightmost characters
+                        src_idx        <= MAX_INP_DIGITS - 1;
+                        dst_idx        <= MAX_OUT_CHARS - 1;
+                        
+                        // When we get to the next state, we will be handling the first output digit
+                        digits_out     <= 1;
+                        
+                        // And go to the next state
+                        state          <= 1;
+                    end
+
+                1:  begin
+                        // Copy the current nybble from the source value to the ASCII result array
+                        result[dst_idx] = ascii(value[src_idx]);
+                        
+                        // If we just copied the final digit, we're done
+                        if (digits_out == max_digits_out) state <= 0;
+                        
+                        // Otherwise, if we're supposed to output separators, and this digit index 
+                        // is divisible by four, output a ":" separator
+                        else if (NOSEP == 0 && digits_out[1:0] == 0) begin
+                            result[dst_idx-1] <= ":";
+                            dst_idx           <= dst_idx - 2;
+                        
+                        // Otherwise, just point to the next destination in "result[]"
+                        end else dst_idx <= dst_idx - 1;
+
+                        // Point to the next source nybble in "value[]"
+                        src_idx <= src_idx - 1;
+                        
+                        // And keep track of how many digits we have output
+                        digits_out <= digits_out + 1;
+                    end
+
+            endcase
+        end
+    end
+    //=====================================================================================================
+
+    // Tell the outside world when we're idle;
+    assign IDLE = (state == 0 && START == 0);
+
+    // This maps our unpacked "result[]" array back into the packed RESULT output
+    genvar x;
+    for (x=0; x<MAX_OUT_CHARS; x=x+1) begin
+        assign RESULT[x*8 +: 8] = result[MAX_OUT_CHARS-1-x];
+    end
+
+endmodule
+//=========================================================================================================
+
+
 
 
 module printer#  
@@ -527,6 +631,10 @@ module printer#
     reg[1:0]                translate_state;
     assign                  translate_idle = (translate_state == 0 && translate_start == 0);
     //------------------------------------------------------------------------------------------------------------------
+    localparam  IS_ASC = 0;
+    localparam  IS_HEX = 1;
+    localparam  IS_BIN = 2;
+    localparam  IS_DEC = 3;
     always @(posedge CLK) begin
         printer_start <= 0;
         
@@ -538,7 +646,6 @@ module printer#
             0:  if (translate_start) begin
                     for (i=0; i<PBUFF_CHARS; i=i+1) printer_inp[i] <= 0;
                     translate_state <= 1;
-                    led <= translate_fmt;
                 end
 
             // Dependent on whether this message contains a binary value, copy either the
@@ -546,7 +653,7 @@ module printer#
             // 8 byte (i.e., 64-bit) numeric value into the print buffer.   The message ends
             // up right-justified in the print buffer.
             1:  begin
-                    if (translate_fmt[14:12] == 0) begin
+                    if (translate_fmt[14:12] == IS_ASC) begin
                         for (i=0; i<PBUFF_CHARS; i=i+1) begin
                             printer_inp[i] <= translate_inp[(PBUFF_CHARS-1-i)*8 +: 8];
                         end
