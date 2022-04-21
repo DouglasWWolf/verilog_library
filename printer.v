@@ -341,7 +341,7 @@ module printer#
     assign RESETN_OUT = RESETN;
 
     //-----------------------------------------------------------
-    // Input fields for binary to ASCII conversion
+    // Registers for binary to ASCII conversion
     //-----------------------------------------------------------
     reg[63:0]             to_ascii_input;
     reg[7:0]              to_ascii_digits_out;
@@ -349,12 +349,6 @@ module printer#
     reg                   to_ascii_start [1:3];
     wire                  to_ascii_idle  [1:3];
     wire[TOP_PBUFF_BIT:0] to_ascii_result[1:3];
-    //-----------------------------------------------------------
-
-    //-----------------------------------------------------------
-    // Other fields for converting binary to ASCII
-    //-----------------------------------------------------------
-    
     //-----------------------------------------------------------
 
     //-----------------------------------------------------------
@@ -597,17 +591,17 @@ module printer#
 
             // If we get here, it means we need to translate a binary value into ASCII
             2:  begin
-                    to_ascii_input             <= translate_inp[63:0];
-                    to_ascii_digits_out        <= translate_fmt[7:0];
-                    to_ascii_nosep             <= translate_fmt[NOSEP_BIT];
-                    to_ascii_start[RADIX_HEX]  <= 1;
-                    translate_state            <= 3;
+                    to_ascii_input        <= translate_inp[63:0];
+                    to_ascii_digits_out   <= translate_fmt[7:0];
+                    to_ascii_nosep        <= translate_fmt[NOSEP_BIT];
+                    to_ascii_start[radix] <= 1;
+                    translate_state       <= 3;
                 end
 
             // Wait for the translation from binary to ASCII to be ready, and for the printer to be idle.  Once 
             // that's true, print the number that we just translated from binary to ASCII.
-            3:  if (to_ascii_idle[RADIX_HEX] && printer_idle) begin
-                    printer_inp     <= to_ascii_result[RADIX_HEX];
+            3:  if (to_ascii_idle[radix] && printer_idle) begin
+                    printer_inp     <= to_ascii_result[radix];
                     printer_crlf    <= translate_fmt[CRLF_BIT];
                     printer_start   <= 1;
                     translate_state <= 0;
