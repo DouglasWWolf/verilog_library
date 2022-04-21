@@ -368,7 +368,6 @@ module printer#
     
     to_ascii_bin#(.OUTPUT_WIDTH(PBUFF_CHARS)) to_ascii_bin_inst
     (
-        .BLINKY(BLINKY),
         .CLK        (CLK),
         .RESETN     (RESETN),
         .VALUE      (to_ascii_input),
