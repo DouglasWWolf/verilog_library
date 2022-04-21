@@ -319,8 +319,8 @@ module printer#
     //                               End of AXI4 Lite Master state machines
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
-
-
+ 
+ 
  
     integer i;genvar x;
     reg[15:0] led = 0;   assign LED = led;
@@ -329,42 +329,49 @@ module printer#
     localparam PBUFF_CHARS  = `PBUFF_CHARS;
     localparam PFRAME_WIDTH = `PFRAME_WIDTH;
     localparam PFMT_WIDTH   = `PFMT_WIDTH;
+    localparam TOP_PBUFF_BIT = 8*PBUFF_CHARS-1;
+
+    localparam RADIX_ASC = 0;
+    localparam RADIX_HEX = 1;
+    localparam RADIX_BIN = 2;
+    localparam RADIX_DEC = 3;
 
     wire RESET = ~RESETN;
     assign CLK_OUT = CLK;
     assign RESETN_OUT = RESETN;
 
-    //----------------------------------------------
+    //-----------------------------------------------------------
     // Input fields for binary to ASCII conversion
-    //----------------------------------------------
-    reg[63:0]       to_ascii_input;
-    reg[7:0]        to_ascii_digits_out;
-    reg             to_ascii_nosep;
-    //----------------------------------------------
+    //-----------------------------------------------------------
+    reg[63:0]             to_ascii_input;
+    reg[7:0]              to_ascii_digits_out;
+    reg                   to_ascii_nosep;
+    reg                   to_ascii_start [1:3];
+    wire                  to_ascii_idle  [1:3];
+    wire[TOP_PBUFF_BIT:0] to_ascii_result[1:3];
+    //-----------------------------------------------------------
 
-    //----------------------------------------------
+    //-----------------------------------------------------------
     // Other fields for converting binary to ASCII
-    //----------------------------------------------
-    reg             to_ascii_hex_start;
-    wire            to_ascii_hex_idle;
-    wire[19*8-1:0]  to_ascii_hex_result;
-    //----------------------------------------------
+    //-----------------------------------------------------------
+    
+    //-----------------------------------------------------------
 
-    //----------------------------------------------
+    //-----------------------------------------------------------
     // Modules for converting binary to ASCII
-    //----------------------------------------------
-    to_ascii_hex to_ascii_hex_inst#(.OUTPUT_WIDTH(PBUFF_CHARS))
+    //-----------------------------------------------------------
+    to_ascii_hex#(.OUTPUT_WIDTH(PBUFF_CHARS)) to_ascii_hex_inst
     (
         .CLK        (CLK),
         .RESETN     (RESETN),
         .VALUE      (to_ascii_input),
         .DIGITS_OUT (to_ascii_digits_out),
         .NOSEP      (to_ascii_nosep),
-        .START      (to_ascii_hex_start),
-        .RESULT     (to_ascii_hex_result),
-        .IDLE       (to_ascii_hex_idle)
+        .START      (to_ascii_start [RADIX_HEX]),
+        .RESULT     (to_ascii_result[RADIX_HEX]),
+        .IDLE       (to_ascii_idle  [RADIX_HEX])
     );
-    //----------------------------------------------
+    //-----------------------------------------------------------
 
 
     //==================================================================================================================
@@ -441,10 +448,10 @@ module printer#
     // At end:      "printer_idle" will go high 
     //==================================================================================================================
     // public:
-    reg[8*PBUFF_CHARS-1:0]  printer_inp;
-    reg                     printer_crlf;        
-    reg                     printer_start;     
-    wire                    printer_idle;
+    reg[TOP_PBUFF_BIT:0] printer_inp;
+    reg                  printer_crlf;        
+    reg                  printer_start;     
+    wire                 printer_idle;
     //-----------------------------------------------------------------------------------------------------------------------
     // private:
     localparam s_IDLE               = 0;
@@ -544,34 +551,29 @@ module printer#
     //               field except for the last 8 bytes (i.e., 64 bits) is assumed to contain ASCII characters
     //==================================================================================================================
     // public:
-    reg[PBUFF_CHARS*8-1:0]  translate_inp;
-    reg[PFMT_WIDTH-1   :0]  translate_fmt;
-    reg                     translate_start;
-    wire                    translate_idle;
+    reg[TOP_PBUFF_BIT:0] translate_inp;
+    reg[PFMT_WIDTH-1 :0] translate_fmt;
+    reg                  translate_start;
+    wire                 translate_idle;
     //------------------------------------------------------------------------------------------------------------------
     // private:
-    reg[1:0]                translate_state;
-    reg[2:0]                format;
-    assign                  translate_idle = (translate_state == 0 && translate_start == 0);
+    reg[1:0]             translate_state;
+    reg[2:0]             radix;
+    assign               translate_idle = (translate_state == 0 && translate_start == 0);
     //------------------------------------------------------------------------------------------------------------------
-    localparam  IS_ASC = 0;
-    localparam  IS_HEX = 1;
-    localparam  IS_BIN = 2;
-    localparam  IS_DEC = 3;
-
     localparam  CRLF_BIT = 15;
     localparam  NOSEP_BIT = 11;
 
     always @(posedge CLK) begin
         printer_start      <= 0;
-        to_ascii_hex_start <= 0;
+        to_ascii_start[RADIX_HEX] <= 0;
         if (RESETN == 0) begin
             translate_state = 0; 
         end else case(translate_state)
 
             // Wait for someone to raise "start", and when they do, clear the print buffer
             0:  if (translate_start) begin
-                    format          <= translate_fmt[14:12];
+                    radix           <= translate_fmt[14:12];
                     translate_state <= 1;
                 end 
 
@@ -581,12 +583,12 @@ module printer#
             // up right-justified in the print buffer.
             1:  if (printer_idle) begin
                     printer_inp <= 0;
-                    if (format == IS_ASC) begin
+                    if (radix == RADIX_ASC) begin
                         printer_inp     <= translate_inp;
                         printer_crlf    <= translate_fmt[CRLF_BIT];
                         translate_state <= 0;
                     end else begin
-                        printer_inp     <= translate_inp[64 +: 8*PBUFF_CHARS - 64];
+                        printer_inp     <= {64'b0, translate_inp[64 +: 8*PBUFF_CHARS - 64]};
                         printer_crlf    <= 0;
                         translate_state <= 2;
                     end
@@ -595,18 +597,17 @@ module printer#
 
             // If we get here, it means we need to translate a binary value into ASCII
             2:  begin
-                    to_ascii_input      <= translate_inp[63:0];
-                    to_ascii_digits_out <= translate_fmt[7:0];
-                    to_ascii_nosep      <= translate_fmt[NOSEP_BIT];
-                    to_ascii_hex_start  <= 1;
-                    translate_state     <= 3;
+                    to_ascii_input             <= translate_inp[63:0];
+                    to_ascii_digits_out        <= translate_fmt[7:0];
+                    to_ascii_nosep             <= translate_fmt[NOSEP_BIT];
+                    to_ascii_start[RADIX_HEX]  <= 1;
+                    translate_state            <= 3;
                 end
 
             // Wait for the translation from binary to ASCII to be ready, and for the printer to be idle.  Once 
             // that's true, print the number that we just translated from binary to ASCII.
-            3:  if (to_ascii_hex_idle && printer_idle) begin
-                    printer_inp     <= 0;
-                    printer_inp     <= to_ascii_hex_result;
+            3:  if (to_ascii_idle[RADIX_HEX] && printer_idle) begin
+                    printer_inp     <= to_ascii_result[RADIX_HEX];
                     printer_crlf    <= translate_fmt[CRLF_BIT];
                     printer_start   <= 1;
                     translate_state <= 0;
@@ -658,8 +659,6 @@ module printer#
             3'b100: if (fifo_valid[fifo_index]) begin
                         translate_fmt   <= fifo_data[fifo_index][ 0 +: 16];
                         translate_inp   <= fifo_data[fifo_index][32 +: PBUFF_CHARS*8];
-                        //translate_inp[63:0] <= 64'h12341234DEADBAAF;
-                        //translate_inp[64 +: 8*(PBUFF_CHARS-8)] <= "Hello world ";
                         translate_start <= 1;
                         reader_state    <= 3'b001;
                     end
