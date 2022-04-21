@@ -23,112 +23,6 @@
 //   (4) Add the xpm_fifo_sync (or xpm_fifo_async) to the bottom of this module 
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 
-//=========================================================================================================
-// to_ascii_hex: FSM that converts a 64-bit number to ASCII hex
-//
-// The output RESULT field should be large enough to accommidate 19 8-bit characters
-//=========================================================================================================
-module to_ascii_hex
-(
-    input            CLK, RESETN,
-    input[63:0]      VALUE,
-    input[7:0]       DIGITS_OUT,
-    input            NOSEP,
-    input            START,
-    output[19*8-1:0] RESULT,
-    output           IDLE
-);
-
-    integer i;
-    localparam MAX_OUT_CHARS  = 19;
-    localparam MAX_INP_DIGITS = 16;
-
-    reg[7:0] result[0:MAX_OUT_CHARS-1];    // Holds the resulting ASCII characters
-    reg[3:0] value[0:MAX_INP_DIGITS-1];    // Holds the input value, one nybble per slot
-    reg      state;
-    reg[4:0] src_idx, dst_idx, digits_out, max_digits_out;
-
-    //=============================================================================
-    // ascii() - Returns the ASCII character that corresponds to the input nybble
-    //=============================================================================
-    function [7:0] ascii(input[3:0] nybble);
-        ascii = nybble > 9 ? nybble + 87 : nybble + 48;
-    endfunction
-    //=============================================================================
-
-    //=====================================================================================================
-    // FSM that converts the 64-bit number in VALUE to a series of ASCII digits right justified in both
-    // "result" and "RESULT"
-    //=====================================================================================================
-    always @(posedge CLK) begin
-        if (RESETN == 0) begin
-            state <= 0;
-        end else begin
-            case(state)
-                0:  if (START) begin
-                        // Clear the result character buffer to all zeros
-                        for (i=0; i<MAX_OUT_CHARS; i=i+1) result[i] = 0;
-                        
-                        // Convert the packed input VALUE into an unpacked array of 4-bit values
-                        for (i=0; i<MAX_INP_DIGITS; i=i+1) value[i] <= VALUE[4*(MAX_INP_DIGITS-1-i) +: 4];
-                        
-                        // Determine the maximum number of digits we should output
-                        max_digits_out <= (DIGITS_OUT == 0) ? 8 : DIGITS_OUT;
-                        
-                        // As we copy characters from "value" to "result", start at the rightmost characters
-                        src_idx        <= MAX_INP_DIGITS - 1;
-                        dst_idx        <= MAX_OUT_CHARS - 1;
-                        
-                        // When we get to the next state, we will be handling the first output digit
-                        digits_out     <= 1;
-                        
-                        // And go to the next state
-                        state          <= 1;
-                    end
-
-                1:  begin
-                        // Copy the current nybble from the source value to the ASCII result array
-                        result[dst_idx] = ascii(value[src_idx]);
-                        
-                        // If we just copied the final digit, we're done
-                        if (digits_out == max_digits_out) state <= 0;
-                        
-                        // Otherwise, if we're supposed to output separators, and this digit index 
-                        // is divisible by four, output a ":" separator
-                        else if (NOSEP == 0 && digits_out[1:0] == 0) begin
-                            result[dst_idx-1] <= ":";
-                            dst_idx           <= dst_idx - 2;
-                        
-                        // Otherwise, just point to the next destination in "result[]"
-                        end else dst_idx <= dst_idx - 1;
-
-                        // Point to the next source nybble in "value[]"
-                        src_idx <= src_idx - 1;
-                        
-                        // And keep track of how many digits we have output
-                        digits_out <= digits_out + 1;
-                    end
-
-            endcase
-        end
-    end
-    //=====================================================================================================
-
-    // Tell the outside world when we're idle;
-    assign IDLE = (state == 0 && START == 0);
-
-    // This maps our unpacked "result[]" array back into the packed RESULT output
-    genvar x;
-    for (x=0; x<MAX_OUT_CHARS; x=x+1) begin
-        assign RESULT[x*8 +: 8] = result[MAX_OUT_CHARS-1-x];
-    end
-
-endmodule
-//=========================================================================================================
-
-
-
-
 module printer#  
 (
     parameter integer C_AXI_DATA_WIDTH = 32,
@@ -428,7 +322,7 @@ module printer#
 
 
  
-    integer i;
+    integer i;genvar x;
     reg[15:0] led = 0;   assign LED = led;
     reg blinky = 0; assign BLINKY = blinky;
 
@@ -440,14 +334,39 @@ module printer#
     assign CLK_OUT = CLK;
     assign RESETN_OUT = RESETN;
 
+    //----------------------------------------------
+    // Input fields for binary to ASCII conversion
+    //----------------------------------------------
+    reg[63:0]       to_ascii_input;
+    reg[7:0]        to_ascii_digits_out;
+    reg             to_ascii_nosep;
+    //----------------------------------------------
 
-    wire[7:0] ascii[0:15];
-    assign ascii[00] = "0"; assign ascii[01] = "1";  assign ascii[02] = "2";  assign ascii[03] = "3";
-    assign ascii[04] = "4"; assign ascii[05] = "5";  assign ascii[06] = "6";  assign ascii[07] = "7";
-    assign ascii[08] = "8"; assign ascii[09] = "9";  assign ascii[10] = "a";  assign ascii[11] = "b";
-    assign ascii[12] = "c"; assign ascii[13] = "d";  assign ascii[14] = "e";  assign ascii[15] = "f";
+    //----------------------------------------------
+    // Other fields for converting binary to ASCII
+    //----------------------------------------------
+    reg             to_ascii_hex_start;
+    wire            to_ascii_hex_idle;
+    wire[19*8-1:0]  to_ascii_hex_result;
+    //----------------------------------------------
 
-     
+    //----------------------------------------------
+    // Modules for converting binary to ASCII
+    //----------------------------------------------
+    to_ascii_hex to_ascii_hex_inst#(.OUTPUT_WIDTH(PBUFF_CHARS))
+    (
+        .CLK        (CLK),
+        .RESETN     (RESETN),
+        .VALUE      (to_ascii_input),
+        .DIGITS_OUT (to_ascii_digits_out),
+        .NOSEP      (to_ascii_nosep),
+        .START      (to_ascii_hex_start),
+        .RESULT     (to_ascii_hex_result),
+        .IDLE       (to_ascii_hex_idle)
+    );
+    //----------------------------------------------
+
+
     //==================================================================================================================
     // This state machine waits for someone to raise the "transmit_start" signal, then sends the byte in register  
     // "transmit_data" to the UART TX FIFO.
@@ -509,12 +428,12 @@ module printer#
     end
     //==================================================================================================================
   
-  
+   
    
     
     //==================================================================================================================
-    // This state machine loops through the input string, transmitting each byte in turn until they've all been
-    // transmitted.
+    // printer: This state machine loops through the input string, transmitting each byte in turn until they've all been
+    //          transmitted.
     //
     // To start:    string to be printed is right-justified in "printer_inp[]"
     //              raise "printer_start"
@@ -522,10 +441,10 @@ module printer#
     // At end:      "printer_idle" will go high 
     //==================================================================================================================
     // public:
-    reg[7:0]              printer_inp[0:PBUFF_CHARS-1];
-    reg[PFMT_WIDTH-1 : 0] printer_fmt;        
-    reg                   printer_start;     
-    wire                  printer_idle;
+    reg[8*PBUFF_CHARS-1:0]  printer_inp;
+    reg                     printer_crlf;        
+    reg                     printer_start;     
+    wire                    printer_idle;
     //-----------------------------------------------------------------------------------------------------------------------
     // private:
     localparam s_IDLE               = 0;
@@ -535,18 +454,21 @@ module printer#
     localparam s_END_OF_INPUT       = 4;
     localparam s_TRANSMIT_LINEFEED  = 5;
 
-    localparam CRLF_BIT             = 15;
-
     reg[$clog2(PBUFF_CHARS):0]      char_index;
     reg[2:0]                        printer_state;
     assign printer_idle = (printer_state == s_IDLE && printer_start == 0);     
+    wire[7:0] printer_inp_chr[0:PBUFF_CHARS-1];
+    for (x=0; x<PBUFF_CHARS; x=x+1) assign printer_inp_chr[x] = printer_inp[8*(PBUFF_CHARS-1-x) +: 8];
     //-----------------------------------------------------------------------------------------------------------------------
+    
+   
     always @(posedge CLK) begin
         transmit_start <= 0;
 
         if (RESETN == 0) begin
             printer_state  <= s_IDLE;
         end else begin
+
             case (printer_state)
             
             // In IDLE mode, we're waiting around for the "START" signal to go high
@@ -560,7 +482,7 @@ module printer#
             s_LOOK_FOR_FNZ:
                 if (char_index == PBUFF_CHARS) begin
                     printer_state <= s_IDLE;
-                end else if (printer_inp[char_index] == 0)
+                end else if (printer_inp_chr[char_index] == 0)
                     char_index <= char_index + 1;
                 else begin
                     printer_state <= s_TRANSMIT_CHAR;        
@@ -569,7 +491,7 @@ module printer#
             // Transmit a character
             s_TRANSMIT_CHAR:
                 begin 
-                    transmit_data   <= printer_inp[char_index];
+                    transmit_data   <= printer_inp_chr[char_index];
                     transmit_start  <= 1;
                     printer_state   <= s_WAIT_FOR_TRANSMIT;
                 end
@@ -587,7 +509,7 @@ module printer#
     
             // If we need to print a CRLF, wait for the transmitter to go idle then transmit a carriage-return
             s_END_OF_INPUT:
-                if (printer_fmt[CRLF_BIT] == 0) begin
+                if (printer_crlf == 0) begin
                     printer_state = s_IDLE;
                 end else if (transmit_idle) begin
                     transmit_data  <= "\r";
@@ -629,46 +551,66 @@ module printer#
     //------------------------------------------------------------------------------------------------------------------
     // private:
     reg[1:0]                translate_state;
+    reg[2:0]                format;
     assign                  translate_idle = (translate_state == 0 && translate_start == 0);
     //------------------------------------------------------------------------------------------------------------------
     localparam  IS_ASC = 0;
     localparam  IS_HEX = 1;
     localparam  IS_BIN = 2;
     localparam  IS_DEC = 3;
+
+    localparam  CRLF_BIT = 15;
+    localparam  NOSEP_BIT = 11;
+
     always @(posedge CLK) begin
-        printer_start <= 0;
-        
+        printer_start      <= 0;
+        to_ascii_hex_start <= 0;
         if (RESETN == 0) begin
             translate_state = 0; 
         end else case(translate_state)
 
             // Wait for someone to raise "start", and when they do, clear the print buffer
             0:  if (translate_start) begin
-                    for (i=0; i<PBUFF_CHARS; i=i+1) printer_inp[i] <= 0;
+                    format          <= translate_fmt[14:12];
                     translate_state <= 1;
-                end
+                end 
 
             // Dependent on whether this message contains a binary value, copy either the
             // entire "translate_bits" into the print buffer, or copy everything except the
             // 8 byte (i.e., 64-bit) numeric value into the print buffer.   The message ends
             // up right-justified in the print buffer.
-            1:  begin
-                    if (translate_fmt[14:12] == IS_ASC) begin
-                        for (i=0; i<PBUFF_CHARS; i=i+1) begin
-                            printer_inp[i] <= translate_inp[(PBUFF_CHARS-1-i)*8 +: 8];
-                        end
+            1:  if (printer_idle) begin
+                    printer_inp <= 0;
+                    if (format == IS_ASC) begin
+                        printer_inp     <= translate_inp;
+                        printer_crlf    <= translate_fmt[CRLF_BIT];
+                        translate_state <= 0;
                     end else begin
-                        for (i=0; i<PBUFF_CHARS-8; i=i+1) begin
-                            printer_inp[i+8] <= translate_inp[(PBUFF_CHARS-1-i)*8 +: 8];
-                        end
+                        printer_inp     <= translate_inp[64 +: 8*PBUFF_CHARS - 64];
+                        printer_crlf    <= 0;
+                        translate_state <= 2;
                     end
-                    printer_fmt     <= translate_fmt;
                     printer_start   <= 1;
-                    translate_state <= 2;
                 end
 
-            // Wait for the printer to go idle, and when it does, this FSM returns to idle
-            2:  if (printer_idle) translate_state <= 0;
+            // If we get here, it means we need to translate a binary value into ASCII
+            2:  begin
+                    to_ascii_input      <= translate_inp[63:0];
+                    to_ascii_digits_out <= translate_fmt[7:0];
+                    to_ascii_nosep      <= translate_fmt[NOSEP_BIT];
+                    to_ascii_hex_start  <= 1;
+                    translate_state     <= 3;
+                end
+
+            // Wait for the translation from binary to ASCII to be ready, and for the printer to be idle.  Once 
+            // that's true, print the number that we just translated from binary to ASCII.
+            3:  if (to_ascii_hex_idle && printer_idle) begin
+                    printer_inp     <= 0;
+                    printer_inp     <= to_ascii_hex_result;
+                    printer_crlf    <= translate_fmt[CRLF_BIT];
+                    printer_start   <= 1;
+                    translate_state <= 0;
+                end
 
         endcase
     end
@@ -714,12 +656,15 @@ module printer#
                     end
                 
             3'b100: if (fifo_valid[fifo_index]) begin
-                        {translate_inp, translate_fmt} <= fifo_data[fifo_index];
-                        translate_start             <= 1;
-                        reader_state                <= 3'b001;
+                        translate_fmt   <= fifo_data[fifo_index][ 0 +: 16];
+                        translate_inp   <= fifo_data[fifo_index][32 +: PBUFF_CHARS*8];
+                        //translate_inp[63:0] <= 64'h12341234DEADBAAF;
+                        //translate_inp[64 +: 8*(PBUFF_CHARS-8)] <= "Hello world ";
+                        translate_start <= 1;
+                        reader_state    <= 3'b001;
                     end
             
-            endcase
+            endcase 
         end
     end
     //==================================================================================================================
@@ -728,9 +673,11 @@ module printer#
 
 
 
+
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
     //                  Everything in this block instantiates a single FIFO 
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    `ifdef HAS_00
     xpm_fifo_sync #
     (
       .CASCADE_HEIGHT       (0),       
@@ -794,17 +741,20 @@ module printer#
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
     //                       End of FIFO description/instantiation
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    `endif
+
 
 
 
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
-    //               Everything in this block instantiates a single FIFO 
+    //                  Everything in this block instantiates a single FIFO 
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    `ifdef HAS_01
     xpm_fifo_sync #
     (
-      .CASCADE_HEIGHT(0),
-      .DOUT_RESET_VALUE     ("0"),  
-      .ECC_MODE             ("no_ecc"),     
+      .CASCADE_HEIGHT       (0),       
+      .DOUT_RESET_VALUE     ("0"),    
+      .ECC_MODE             ("no_ecc"),       
       .FIFO_MEMORY_TYPE     ("auto"), 
       .FIFO_READ_LATENCY    (1),     
       .FIFO_WRITE_DEPTH     (256),    
@@ -818,7 +768,7 @@ module printer#
       .USE_ADV_FEATURES     ("1000"), 
       .WAKEUP_TIME          (0),           
       .WRITE_DATA_WIDTH     (PFRAME_WIDTH), 
-      .WR_DATA_COUNT_WIDTH  (1)   
+      .WR_DATA_COUNT_WIDTH  (1)    
 
       //------------------------------------------------------------
       // These exist only in xpm_fifo_async, not in xpm_fifo_sync
@@ -863,6 +813,9 @@ module printer#
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
     //                       End of FIFO description/instantiation
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    `endif
+
+ 
 
 
 endmodule
