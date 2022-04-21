@@ -324,7 +324,6 @@ module printer#
  
     integer i;genvar x;
     reg[15:0] led = 0;   assign LED = led;
-    reg blinky = 0; assign BLINKY = blinky;
 
     localparam PBUFF_CHARS  = `PBUFF_CHARS;
     localparam PFRAME_WIDTH = `PFRAME_WIDTH;
@@ -364,6 +363,20 @@ module printer#
         .START      (to_ascii_start [RADIX_HEX]),
         .RESULT     (to_ascii_result[RADIX_HEX]),
         .IDLE       (to_ascii_idle  [RADIX_HEX])
+    );
+    
+    
+    to_ascii_bin#(.OUTPUT_WIDTH(PBUFF_CHARS)) to_ascii_bin_inst
+    (
+        .BLINKY(BLINKY),
+        .CLK        (CLK),
+        .RESETN     (RESETN),
+        .VALUE      (to_ascii_input),
+        .DIGITS_OUT (to_ascii_digits_out),
+        .NOSEP      (to_ascii_nosep),
+        .START      (to_ascii_start [RADIX_BIN]),
+        .RESULT     (to_ascii_result[RADIX_BIN]),
+        .IDLE       (to_ascii_idle  [RADIX_BIN])
     );
     //-----------------------------------------------------------
 
@@ -559,8 +572,10 @@ module printer#
     localparam  NOSEP_BIT = 11;
 
     always @(posedge CLK) begin
-        printer_start      <= 0;
+        printer_start             <= 0;
         to_ascii_start[RADIX_HEX] <= 0;
+        to_ascii_start[RADIX_BIN] <= 0;
+        
         if (RESETN == 0) begin
             translate_state = 0; 
         end else case(translate_state)
@@ -639,10 +654,12 @@ module printer#
         end else begin 
             case (reader_state)
             
+            // Wait for the downstream translator to be ready for us
             3'b001: if (translate_idle) begin
                         reader_state <= 3'b010;
                     end
-
+            // Do a round-robin scan, looking for one of the FIFOs to have data in it.  When
+            // we find one, issue a "read" command 
             3'b010: if (fifo_empty[fifo_index]) begin
                         fifo_index <= (fifo_index == FIFO_COUNT-1) ? 0: fifo_index + 1;
                     end else begin
@@ -650,6 +667,8 @@ module printer#
                         reader_state           <= 3'b100;
                     end
                 
+            // Wait for the data-lines on the FIFO to become valid, and when they do, hand
+            // the contents to the translation engine
             3'b100: if (fifo_valid[fifo_index]) begin
                         translate_fmt   <= fifo_data[fifo_index][ 0 +: 16];
                         translate_inp   <= fifo_data[fifo_index][32 +: PBUFF_CHARS*8];
