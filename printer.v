@@ -574,6 +574,7 @@ module printer#
         printer_start             <= 0;
         to_ascii_start[RADIX_HEX] <= 0;
         to_ascii_start[RADIX_BIN] <= 0;
+        to_ascii_start[RADIX_DEC] <= 0;
         
         if (RESETN == 0) begin
             translate_state = 0; 
@@ -590,7 +591,6 @@ module printer#
             // 8 byte (i.e., 64-bit) numeric value into the print buffer.   The message ends
             // up right-justified in the print buffer.
             1:  if (printer_idle) begin
-                    printer_inp <= 0;
                     if (radix == RADIX_ASC) begin
                         printer_inp     <= translate_inp;
                         printer_crlf    <= translate_fmt[CRLF_BIT];

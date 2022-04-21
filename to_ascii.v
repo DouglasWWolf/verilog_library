@@ -1,13 +1,13 @@
 `timescale 1ns / 1ps
 
 
-    //=============================================================================
-    // ascii() - Returns the ASCII character that corresponds to the input nybble
-    //=============================================================================
-    function [7:0] ascii(input[3:0] nybble);
-        ascii = nybble > 9 ? nybble + 87 : nybble + 48;
-    endfunction
-    //=============================================================================
+//=========================================================================================================
+// ascii() - Returns the ASCII character that corresponds to the input nybble
+//=========================================================================================================
+function [7:0] ascii(input[3:0] nybble);
+    ascii = nybble > 9 ? nybble + 87 : nybble + 48;
+endfunction
+//=========================================================================================================
 
 
 //=========================================================================================================
@@ -35,15 +35,6 @@ module to_ascii_hex#(parameter OUTPUT_WIDTH = 19)
     reg[4:0] src_idx, digits_out, last_src_idx;
     reg[7:0] dst_idx;
 
-/*
-    //=============================================================================
-    // ascii() - Returns the ASCII character that corresponds to the input nybble
-    //=============================================================================
-    function [7:0] ascii(input[3:0] nybble);
-        ascii = nybble > 9 ? nybble + 87 : nybble + 48;
-    endfunction
-    //=============================================================================
-*/
     //=====================================================================================================
     // FSM that converts the 64-bit number in VALUE to a series of ASCII digits right justified in both
     // "result" and "RESULT"
@@ -143,15 +134,7 @@ module to_ascii_bin#(parameter OUTPUT_WIDTH = 36)
     reg[6:0] src_idx, digits_out, last_src_idx;
     reg[7:0] dst_idx;
 
-/*
-    //=============================================================================
-    // ascii() - Returns the ASCII character that corresponds to the input nybble
-    //=============================================================================
-    function [7:0] ascii(input[3:0] nybble);
-        ascii = nybble > 9 ? nybble + 87 : nybble + 48;
-    endfunction
-    //=============================================================================
-*/
+
     //=====================================================================================================
     // FSM that converts the 64-bit number in VALUE to a series of ASCII digits right justified in both
     // "result" and "RESULT"
