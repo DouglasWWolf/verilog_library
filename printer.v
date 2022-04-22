@@ -473,16 +473,9 @@ module printer#
     wire                 printer_idle;
     //-----------------------------------------------------------------------------------------------------------------------
     // private:
-    localparam s_IDLE               = 0;
-    localparam s_LOOK_FOR_FNZ       = 1;
-    localparam s_TRANSMIT_CHAR      = 2;
-    localparam s_WAIT_FOR_TRANSMIT  = 3;
-    localparam s_END_OF_INPUT       = 4;
-    localparam s_TRANSMIT_LINEFEED  = 5;
-
     reg[$clog2(PBUFF_CHARS):0]      char_index;
     reg[2:0]                        printer_state;
-    assign printer_idle = (printer_state == s_IDLE && printer_start == 0);     
+    assign printer_idle = (printer_state == 0 && printer_start == 0);     
     wire[7:0] printer_inp_chr[0:PBUFF_CHARS-1];
     for (x=0; x<PBUFF_CHARS; x=x+1) assign printer_inp_chr[x] = printer_inp[8*(PBUFF_CHARS-1-x) +: 8];
     //-----------------------------------------------------------------------------------------------------------------------
@@ -492,67 +485,46 @@ module printer#
         transmit_start <= 0;
 
         if (RESETN == 0) begin
-            printer_state  <= s_IDLE;
-        end else begin
-
-            case (printer_state)
+            printer_state  <= 0;
+        end else case (printer_state)
             
             // In IDLE mode, we're waiting around for the "START" signal to go high
-            s_IDLE: 
-                if (printer_start) begin
+            0:  if (printer_start) begin
                     char_index    <= 0;
-                    printer_state <= s_LOOK_FOR_FNZ;
+                    printer_state <= 1;
                 end                       
-                 
-            // Here, we are looking for the first non-zero byte of the string         
-            s_LOOK_FOR_FNZ:
-                if (char_index == PBUFF_CHARS) begin
-                    printer_state <= s_IDLE;
-                end else if (printer_inp_chr[char_index] == 0)
-                    char_index <= char_index + 1;
-                else begin
-                    printer_state <= s_TRANSMIT_CHAR;        
-                end
 
-            // Transmit a character
-            s_TRANSMIT_CHAR:
-                begin 
-                    transmit_data   <= printer_inp_chr[char_index];
-                    transmit_start  <= 1;
-                    printer_state   <= s_WAIT_FOR_TRANSMIT;
-                end
-            
-            // Wait for the transmit to complete, and either go fetch the next character, or be done
-            s_WAIT_FOR_TRANSMIT:
-                if (transmit_idle) begin
-                    if (char_index == PBUFF_CHARS -1) begin
-                        printer_state <= s_END_OF_INPUT;
-                    end else begin
-                        char_index    <= char_index + 1;
-                        printer_state <= s_TRANSMIT_CHAR;
+            // Transmit the characters
+            1:  if (transmit_idle) begin 
+                    if (char_index == PBUFF_CHARS) 
+                        printer_state   <= 2;
+                    else if (printer_inp_chr[char_index]) begin
+                        transmit_data   <= printer_inp_chr[char_index];
+                        transmit_start  <= 1;
                     end
+                    char_index <= char_index + 1;
                 end
     
             // If we need to print a CRLF, wait for the transmitter to go idle then transmit a carriage-return
-            s_END_OF_INPUT:
-                if (printer_crlf == 0) begin
-                    printer_state = s_IDLE;
-                end else if (transmit_idle) begin
+            2:  if (printer_crlf == 0)
+                    printer_state  <= 0;
+                else begin
                     transmit_data  <= "\r";
                     transmit_start <= 1;
-                    printer_state  <= s_TRANSMIT_LINEFEED;
+                    printer_state  <= 3;
                 end
 
             // Wait for the transmitter to go idle, then transmit a linefeed
-            s_TRANSMIT_LINEFEED:
-                if (transmit_idle) begin
+            3:  if (transmit_idle) begin
                     transmit_data  <= "\n";
                     transmit_start <= 1;
-                    printer_state  <= s_IDLE;
+                    printer_state  <= 4;
                 end
+            
+            // Wait for the prior character to finish
+            4:  if (transmit_idle) printer_state <= 0;
 
-           endcase
-        end
+        endcase
     end
     //==================================================================================================================
  
@@ -578,6 +550,7 @@ module printer#
     // private:
     reg[1:0]             translate_state;
     reg[2:0]             radix;
+    reg                  need_crlf, nosep;
     assign               translate_idle = (translate_state == 0 && translate_start == 0);
     //------------------------------------------------------------------------------------------------------------------
     localparam  CRLF_BIT = 15;
@@ -596,6 +569,8 @@ module printer#
             // Wait for someone to raise "start", and when they do, clear the print buffer
             0:  if (translate_start) begin
                     radix           <= translate_fmt[14:12];
+                    need_crlf       <= translate_fmt[CRLF_BIT];
+                    nosep           <= translate_fmt[NOSEP_BIT];
                     translate_state <= 1;
                 end 
 
@@ -606,7 +581,7 @@ module printer#
             1:  if (printer_idle) begin
                     if (radix == RADIX_ASC) begin
                         printer_inp     <= translate_inp;
-                        printer_crlf    <= translate_fmt[CRLF_BIT];
+                        printer_crlf    <= need_crlf;
                         translate_state <= 0;
                     end else begin
                         printer_inp     <= {64'b0, translate_inp[64 +: 8*PBUFF_CHARS - 64]};
@@ -620,7 +595,7 @@ module printer#
             2:  begin
                     to_ascii_input        <= translate_inp[63:0];
                     to_ascii_digits_out   <= translate_fmt[7:0];
-                    to_ascii_nosep        <= translate_fmt[NOSEP_BIT];
+                    to_ascii_nosep        <= nosep;
                     to_ascii_start[radix] <= 1;
                     translate_state       <= 3;
                 end
@@ -629,7 +604,7 @@ module printer#
             // that's true, print the number that we just translated from binary to ASCII.
             3:  if (to_ascii_idle[radix] && printer_idle) begin
                     printer_inp     <= to_ascii_result[radix];
-                    printer_crlf    <= translate_fmt[CRLF_BIT];
+                    printer_crlf    <= need_crlf;
                     printer_start   <= 1;
                     translate_state <= 0;
                 end
