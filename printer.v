@@ -377,6 +377,19 @@ module printer#
         .RESULT     (to_ascii_result[RADIX_BIN]),
         .IDLE       (to_ascii_idle  [RADIX_BIN])
     );
+
+
+    to_ascii_dec#(.OUTPUT_WIDTH(PBUFF_CHARS)) to_ascii_dec_inst
+    (
+        .CLK        (CLK),
+        .RESETN     (RESETN),
+        .VALUE      (to_ascii_input),
+        .FIELD_WIDTH(to_ascii_digits_out),
+        .NOSEP      (to_ascii_nosep),
+        .START      (to_ascii_start [RADIX_DEC]),
+        .RESULT     (to_ascii_result[RADIX_DEC]),
+        .IDLE       (to_ascii_idle  [RADIX_DEC])
+    );
     //-----------------------------------------------------------
 
 
