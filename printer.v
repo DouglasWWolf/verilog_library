@@ -90,8 +90,7 @@ module printer#
     (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_05_WRITE FULL"    *) output        FIFO_05_FULL,
     (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 FIFO_05_WRITE WR_EN"   *) input         FIFO_05_WR_EN,
     `endif
-
-
+ 
     input  CLK, RESETN,
     output CLK_OUT, RESETN_OUT,
     
