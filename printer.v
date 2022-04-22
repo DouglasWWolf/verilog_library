@@ -23,6 +23,19 @@
 //   (4) Add the xpm_fifo_sync (or xpm_fifo_async) to the bottom of this module 
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 
+
+//<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+// To declare an interface to a printer FIFO in your own Verilog code, do this:
+//<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+/*
+    (* X_INTERFACE_MODE = "master" *)
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 PRINTER WR_DATA" *) `PFRAME_OUTPUT FIFO_OUT,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 PRINTER FULL"    *) input          FIFO_FULL,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:fifo_write:1.0 PRINTER WR_EN"   *) output         FIFO_WR_EN
+/*
+//<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+
+
 module printer#  
 (
     parameter integer C_AXI_DATA_WIDTH = 32,
