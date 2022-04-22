@@ -145,7 +145,7 @@ module printer#
         localparam FIFO_COUNT =  3;
     `elsif HAS_01
         localparam FIFO_COUNT =  2;
-    `else
+    `elsif HAS_00
         localparam FIFO_COUNT =  1;
     `endif
     //==========================================================================
@@ -798,6 +798,287 @@ module printer#
         .dout       (fifo_data [1]),              
         .empty      (fifo_empty[1]),            
         .rd_en      (fifo_rd_en[1]),            
+
+      //------------------------------------------------------------
+      // This only exists in xpm_fifo_async, not in xpm_fifo_sync
+      // .rd_clk    (CLK               ),                     
+      //------------------------------------------------------------
+
+        .sleep(),                        
+        .injectdbiterr(),                
+        .injectsbiterr(),                
+        .overflow(),                     
+        .prog_empty(),                   
+        .prog_full(),                    
+        .rd_data_count(),                
+        .rd_rst_busy(),                  
+        .sbiterr(),                      
+        .underflow(),                    
+        .wr_ack(),                       
+        .wr_data_count(),                
+        .wr_rst_busy(),                  
+        .almost_empty(),                 
+        .almost_full(),                  
+        .dbiterr()                       
+    );
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    //                       End of FIFO description/instantiation
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    `endif
+
+
+
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    //                  Everything in this block instantiates a single FIFO 
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    `ifdef HAS_02
+    xpm_fifo_sync #
+    (
+      .CASCADE_HEIGHT       (0),       
+      .DOUT_RESET_VALUE     ("0"),    
+      .ECC_MODE             ("no_ecc"),       
+      .FIFO_MEMORY_TYPE     ("auto"), 
+      .FIFO_READ_LATENCY    (1),     
+      .FIFO_WRITE_DEPTH     (256),    
+      .FULL_RESET_VALUE     (0),      
+      .PROG_EMPTY_THRESH    (10),    
+      .PROG_FULL_THRESH     (10),     
+      .RD_DATA_COUNT_WIDTH  (1),   
+      .READ_DATA_WIDTH      (PFRAME_WIDTH),
+      .READ_MODE            ("std"),         
+      .SIM_ASSERT_CHK       (0),        
+      .USE_ADV_FEATURES     ("1000"), 
+      .WAKEUP_TIME          (0),           
+      .WRITE_DATA_WIDTH     (PFRAME_WIDTH), 
+      .WR_DATA_COUNT_WIDTH  (1)    
+
+      //------------------------------------------------------------
+      // These exist only in xpm_fifo_async, not in xpm_fifo_sync
+      //.CDC_SYNC_STAGES(2),       // DECIMAL
+      //.RELATED_CLOCKS(0),        // DECIMAL
+      //------------------------------------------------------------
+    )
+    xpm_fifo_02
+    (
+        .rst        (RESET        ),                      
+        .full       (FIFO_02_FULL ),              
+        .din        (FIFO_02_IN   ),                 
+        .wr_en      (FIFO_02_WR_EN),            
+        .wr_clk     (CLK          ),          
+        .data_valid (fifo_valid[2]),  
+        .dout       (fifo_data [2]),              
+        .empty      (fifo_empty[2]),            
+        .rd_en      (fifo_rd_en[2]),            
+
+      //------------------------------------------------------------
+      // This only exists in xpm_fifo_async, not in xpm_fifo_sync
+      // .rd_clk    (CLK               ),                     
+      //------------------------------------------------------------
+
+        .sleep(),                        
+        .injectdbiterr(),                
+        .injectsbiterr(),                
+        .overflow(),                     
+        .prog_empty(),                   
+        .prog_full(),                    
+        .rd_data_count(),                
+        .rd_rst_busy(),                  
+        .sbiterr(),                      
+        .underflow(),                    
+        .wr_ack(),                       
+        .wr_data_count(),                
+        .wr_rst_busy(),                  
+        .almost_empty(),                 
+        .almost_full(),                  
+        .dbiterr()                       
+    );
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    //                       End of FIFO description/instantiation
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    `endif
+
+
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    //                  Everything in this block instantiates a single FIFO 
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    `ifdef HAS_03
+    xpm_fifo_sync #
+    (
+      .CASCADE_HEIGHT       (0),       
+      .DOUT_RESET_VALUE     ("0"),    
+      .ECC_MODE             ("no_ecc"),       
+      .FIFO_MEMORY_TYPE     ("auto"), 
+      .FIFO_READ_LATENCY    (1),     
+      .FIFO_WRITE_DEPTH     (256),    
+      .FULL_RESET_VALUE     (0),      
+      .PROG_EMPTY_THRESH    (10),    
+      .PROG_FULL_THRESH     (10),     
+      .RD_DATA_COUNT_WIDTH  (1),   
+      .READ_DATA_WIDTH      (PFRAME_WIDTH),
+      .READ_MODE            ("std"),         
+      .SIM_ASSERT_CHK       (0),        
+      .USE_ADV_FEATURES     ("1000"), 
+      .WAKEUP_TIME          (0),           
+      .WRITE_DATA_WIDTH     (PFRAME_WIDTH), 
+      .WR_DATA_COUNT_WIDTH  (1)    
+
+      //------------------------------------------------------------
+      // These exist only in xpm_fifo_async, not in xpm_fifo_sync
+      //.CDC_SYNC_STAGES(2),       // DECIMAL
+      //.RELATED_CLOCKS(0),        // DECIMAL
+      //------------------------------------------------------------
+    )
+    xpm_fifo_03
+    (
+        .rst        (RESET        ),                      
+        .full       (FIFO_03_FULL ),              
+        .din        (FIFO_03_IN   ),                 
+        .wr_en      (FIFO_03_WR_EN),            
+        .wr_clk     (CLK          ),          
+        .data_valid (fifo_valid[3]),  
+        .dout       (fifo_data [3]),              
+        .empty      (fifo_empty[3]),            
+        .rd_en      (fifo_rd_en[3]),            
+
+      //------------------------------------------------------------
+      // This only exists in xpm_fifo_async, not in xpm_fifo_sync
+      // .rd_clk    (CLK               ),                     
+      //------------------------------------------------------------
+
+        .sleep(),                        
+        .injectdbiterr(),                
+        .injectsbiterr(),                
+        .overflow(),                     
+        .prog_empty(),                   
+        .prog_full(),                    
+        .rd_data_count(),                
+        .rd_rst_busy(),                  
+        .sbiterr(),                      
+        .underflow(),                    
+        .wr_ack(),                       
+        .wr_data_count(),                
+        .wr_rst_busy(),                  
+        .almost_empty(),                 
+        .almost_full(),                  
+        .dbiterr()                       
+    );
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    //                       End of FIFO description/instantiation
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    `endif
+
+
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    //                  Everything in this block instantiates a single FIFO 
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    `ifdef HAS_04
+    xpm_fifo_sync #
+    (
+      .CASCADE_HEIGHT       (0),       
+      .DOUT_RESET_VALUE     ("0"),    
+      .ECC_MODE             ("no_ecc"),       
+      .FIFO_MEMORY_TYPE     ("auto"), 
+      .FIFO_READ_LATENCY    (1),     
+      .FIFO_WRITE_DEPTH     (256),    
+      .FULL_RESET_VALUE     (0),      
+      .PROG_EMPTY_THRESH    (10),    
+      .PROG_FULL_THRESH     (10),     
+      .RD_DATA_COUNT_WIDTH  (1),   
+      .READ_DATA_WIDTH      (PFRAME_WIDTH),
+      .READ_MODE            ("std"),         
+      .SIM_ASSERT_CHK       (0),        
+      .USE_ADV_FEATURES     ("1000"), 
+      .WAKEUP_TIME          (0),           
+      .WRITE_DATA_WIDTH     (PFRAME_WIDTH), 
+      .WR_DATA_COUNT_WIDTH  (1)    
+
+      //------------------------------------------------------------
+      // These exist only in xpm_fifo_async, not in xpm_fifo_sync
+      //.CDC_SYNC_STAGES(2),       // DECIMAL
+      //.RELATED_CLOCKS(0),        // DECIMAL
+      //------------------------------------------------------------
+    )
+    xpm_fifo_04
+    (
+        .rst        (RESET        ),                      
+        .full       (FIFO_04_FULL ),              
+        .din        (FIFO_04_IN   ),                 
+        .wr_en      (FIFO_04_WR_EN),            
+        .wr_clk     (CLK          ),          
+        .data_valid (fifo_valid[4]),  
+        .dout       (fifo_data [4]),              
+        .empty      (fifo_empty[4]),            
+        .rd_en      (fifo_rd_en[4]),            
+
+      //------------------------------------------------------------
+      // This only exists in xpm_fifo_async, not in xpm_fifo_sync
+      // .rd_clk    (CLK               ),                     
+      //------------------------------------------------------------
+
+        .sleep(),                        
+        .injectdbiterr(),                
+        .injectsbiterr(),                
+        .overflow(),                     
+        .prog_empty(),                   
+        .prog_full(),                    
+        .rd_data_count(),                
+        .rd_rst_busy(),                  
+        .sbiterr(),                      
+        .underflow(),                    
+        .wr_ack(),                       
+        .wr_data_count(),                
+        .wr_rst_busy(),                  
+        .almost_empty(),                 
+        .almost_full(),                  
+        .dbiterr()                       
+    );
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    //                       End of FIFO description/instantiation
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    `endif
+
+
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    //                  Everything in this block instantiates a single FIFO 
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    `ifdef HAS_05
+    xpm_fifo_sync #
+    (
+      .CASCADE_HEIGHT       (0),       
+      .DOUT_RESET_VALUE     ("0"),    
+      .ECC_MODE             ("no_ecc"),       
+      .FIFO_MEMORY_TYPE     ("auto"), 
+      .FIFO_READ_LATENCY    (1),     
+      .FIFO_WRITE_DEPTH     (256),    
+      .FULL_RESET_VALUE     (0),      
+      .PROG_EMPTY_THRESH    (10),    
+      .PROG_FULL_THRESH     (10),     
+      .RD_DATA_COUNT_WIDTH  (1),   
+      .READ_DATA_WIDTH      (PFRAME_WIDTH),
+      .READ_MODE            ("std"),         
+      .SIM_ASSERT_CHK       (0),        
+      .USE_ADV_FEATURES     ("1000"), 
+      .WAKEUP_TIME          (0),           
+      .WRITE_DATA_WIDTH     (PFRAME_WIDTH), 
+      .WR_DATA_COUNT_WIDTH  (1)    
+
+      //------------------------------------------------------------
+      // These exist only in xpm_fifo_async, not in xpm_fifo_sync
+      //.CDC_SYNC_STAGES(2),       // DECIMAL
+      //.RELATED_CLOCKS(0),        // DECIMAL
+      //------------------------------------------------------------
+    )
+    xpm_fifo_05
+    (
+        .rst        (RESET        ),                      
+        .full       (FIFO_05_FULL ),              
+        .din        (FIFO_05_IN   ),                 
+        .wr_en      (FIFO_05_WR_EN),            
+        .wr_clk     (CLK          ),          
+        .data_valid (fifo_valid[5]),  
+        .dout       (fifo_data [5]),              
+        .empty      (fifo_empty[5]),            
+        .rd_en      (fifo_rd_en[5]),            
 
       //------------------------------------------------------------
       // This only exists in xpm_fifo_async, not in xpm_fifo_sync
