@@ -429,7 +429,7 @@ module printer#
         end else case (transmit_state)
 
             // Here we are idle, waiting around for someone to raise the "transmit_start" signal.  If they
-            // do, send their characer to the FIFO
+            // do, send their character to the UART FIFO
             0:  if (transmit_start) begin
                     amci_waddr     <= UART_TX_FIFO_REG;
                     amci_wdata     <= transmit_data;
