@@ -94,10 +94,6 @@ module printer#
     input  CLK, RESETN,
     output CLK_OUT, RESETN_OUT,
     
-    output[15:0] LED,
-    output       BLINKY,
-
-
     //================ From here down is the AXI4-Lite interface ===============
         
     // "Specify write address"              -- Master --    -- Slave --
@@ -167,6 +163,7 @@ module printer#
     //              amci_write = Pulsed high for one cycle
     //
     //  At end:     Write is complete when "amci_widle" goes high
+    //              amci_wresp = AXI_BRESP "write response" signal from slave
     //=========================================================================================================
     reg[1:0]                    write_state = 0;
 
@@ -174,6 +171,7 @@ module printer#
     reg[C_AXI_ADDR_WIDTH-1:0]   amci_waddr;
     reg[C_AXI_DATA_WIDTH-1:0]   amci_wdata;
     reg                         amci_write;
+    reg[2:0]                    amci_wresp;
 
     // FSM user interface outputs
     wire                        amci_widle = (write_state == 0 && amci_write == 0);     
@@ -251,6 +249,7 @@ module printer#
            // Wait around for the slave to assert "M_AXI_BVALID".  When it does, we'll acknowledge
            // it by raising M_AXI_BREADY for one cycle, and go back to idle state
            2:   if (bvalid_and_ready) begin
+                    amci_wresp   <= M_AXI_BRESP;
                     m_axi_bready <= 0;
                     write_state  <= 0;
                 end
@@ -269,7 +268,8 @@ module printer#
     //              amci_read  = Pulsed high for one cycle
     //
     //  At end:   Read is complete when "amci_ridle" goes high.
-    //            The data read is available in amci_rdata.
+    //            amci_rdata = The data that was read
+    //            amci_rresp = The AXI "read response" that is used to indicate success or failure
     //=========================================================================================================
     reg                         read_state = 0;
 
@@ -279,6 +279,7 @@ module printer#
 
     // FSM user interface outputs
     reg[C_AXI_DATA_WIDTH-1:0]   amci_rdata;
+    reg[1:0]                    amci_rresp;
     wire                        amci_ridle = (read_state == 0 && amci_read == 0);     
 
     // AXI registers and outputs
@@ -317,6 +318,7 @@ module printer#
             // contains the data we requested
             1:  if (M_AXI_RVALID && M_AXI_RREADY) begin
                     amci_rdata    <= M_AXI_RDATA;
+                    amci_rresp    <= M_AXI_RRESP;
                     m_axi_rready  <= 0;
                     m_axi_arvalid <= 0;
                     read_state    <= 0;
@@ -335,8 +337,7 @@ module printer#
  
  
     integer i;genvar x;
-    reg[15:0] led = 0;   assign LED = led;
-
+    
     localparam PBUFF_CHARS  = `PBUFF_CHARS;
     localparam PFRAME_WIDTH = `PFRAME_WIDTH;
     localparam PFMT_WIDTH   = `PFMT_WIDTH;
@@ -408,9 +409,6 @@ module printer#
     //==================================================================================================================
     // This state machine waits for someone to raise the "transmit_start" signal, then sends the byte in register  
     // "transmit_data" to the UART TX FIFO.
-    //
-    // Note that there are only four states in this machine, and they always proceed in order:
-    //       state 0, then state 1, then state 2, then state 3, then back to state 0
     //==================================================================================================================
     //public:
     reg[7:0] transmit_data;
@@ -418,12 +416,10 @@ module printer#
     wire     transmit_idle; 
     //-----------------------------------------------------------------------------------------------------------------------
     // private:
-    reg[1:0] transmit_state;
-    assign transmit_idle = transmit_start == 0 && transmit_state == 0;
-
-    // UART AXI register definitions
+    reg      transmit_state;
+    assign   transmit_idle = transmit_start == 0 && transmit_state == 0;
+    
     localparam UART_TX_FIFO_REG = 4;
-    localparam UART_STATUS_REG  = 8;
     //==================================================================================================================
     always @(posedge CLK) begin
         amci_read  <= 0;
@@ -432,34 +428,23 @@ module printer#
             transmit_state <= 0;
         end else case (transmit_state)
 
-            // Here we are idle, waiting around for someone to raise the "transmit_start" signal
+            // Here we are idle, waiting around for someone to raise the "transmit_start" signal.  If they
+            // do, send their characer to the FIFO
             0:  if (transmit_start) begin
-                    transmit_state <= 1;
-                end
-
-            // Once the AXI master is ready for a read transaction, read the UART status register
-            1:  if (amci_ridle) begin
-                    amci_raddr      <= UART_STATUS_REG;  
-                    amci_read       <= 1;
-                    transmit_state  <= 2;
-                end
-                
-            // Wait for the UART TX FIFO status to be returned, then either start another status read (if it's full),
-            // or advance to the next state    
-            2:  if (amci_ridle) begin
-                    if (amci_rdata[3]) begin
-                        amci_read <= 1;
-                    end else begin 
-                        transmit_state <= 3;
-                    end
-                end 
-                    
-            // Finally, stuff the byte in "transmit_data" into the UART's TX FIFO
-            3:  if (amci_widle) begin
                     amci_waddr     <= UART_TX_FIFO_REG;
                     amci_wdata     <= transmit_data;
                     amci_write     <= 1;
-                    transmit_state <= 0;
+                    transmit_state <= 1;
+                end
+
+            // If the write response was "SLVERR" (slave error), it means the FIFO was full
+            // when we tried to write to it.  If there was a SLVERR, we need to resend the 
+            // character to the FIFO.  If there was no SLVERR, we're done.
+            1:  if (amci_widle) begin
+                    if (amci_wresp[1])
+                        amci_write <= 1;
+                    else
+                        transmit_state <= 0; 
                 end
                 
        endcase  
