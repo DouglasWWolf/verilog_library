@@ -579,27 +579,29 @@ module printer#
                     if (radix == RADIX_ASC) begin
                         printer_inp     <= translate_inp;
                         printer_crlf    <= need_crlf;
+                        printer_start   <= 1;
                         translate_state <= 0;
                     end else begin
-                        printer_inp     <= {64'b0, translate_inp[64 +: 8*PBUFF_CHARS - 64]};
-                        printer_crlf    <= 0;
+
+                        // Start sending the text portion of the message to the UART
+                        printer_inp           <= {64'b0, translate_inp[64 +: 8*PBUFF_CHARS - 64]};
+                        printer_crlf          <= 0;
+                        printer_start         <= 1;
+                        
+                        // Start translating the binary portion of the message into ASCII
+                        to_ascii_input        <= translate_inp[63:0];
+                        to_ascii_digits_out   <= translate_fmt[7:0];
+                        to_ascii_nosep        <= nosep;
+                        to_ascii_start[radix] <= 1;
+
+                        // Go wait for the print-job and the binary-to-ASCII translation to complete
                         translate_state <= 2;
                     end
-                    printer_start   <= 1;
-                end
-
-            // If we get here, it means we need to translate a binary value into ASCII
-            2:  begin
-                    to_ascii_input        <= translate_inp[63:0];
-                    to_ascii_digits_out   <= translate_fmt[7:0];
-                    to_ascii_nosep        <= nosep;
-                    to_ascii_start[radix] <= 1;
-                    translate_state       <= 3;
                 end
 
             // Wait for the translation from binary to ASCII to be ready, and for the printer to be idle.  Once 
             // that's true, print the number that we just translated from binary to ASCII.
-            3:  if (to_ascii_idle[radix] && printer_idle) begin
+            2:  if (to_ascii_idle[radix] && printer_idle) begin
                     printer_inp     <= to_ascii_result[radix];
                     printer_crlf    <= need_crlf;
                     printer_start   <= 1;
