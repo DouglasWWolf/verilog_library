@@ -67,6 +67,18 @@ module axi4_lite_master#
     localparam C_AXI_DATA_BYTES = (C_AXI_DATA_WIDTH/8);
 
 
+
+
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
+    //  Below, we're goiing to wire the "amci_xxx" half of the interface to the input and output ports of
+    //  this module.   If you want to adapt this module to use custom drive logic (instead of using it as a
+    //  stand-alone AXI bus-master module), remove the wiring below, remove the AMCI ports from this module's
+    //  port list, and add your own custom logic below to drive the "amci" registers.
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
+
+
     //=========================================================================================================
     // FSM logic used for writing to the slave device.
     //
@@ -75,6 +87,7 @@ module axi4_lite_master#
     //              amci_write = Pulsed high for one cycle
     //
     //  At end:     Write is complete when "amci_widle" goes high
+    //              amci_wresp = AXI_BRESP "write response" signal from slave
     //=========================================================================================================
     reg[1:0]                    write_state = 0;
 
@@ -82,6 +95,7 @@ module axi4_lite_master#
     reg[C_AXI_ADDR_WIDTH-1:0]   amci_waddr;
     reg[C_AXI_DATA_WIDTH-1:0]   amci_wdata;
     reg                         amci_write;
+    reg[2:0]                    amci_wresp;
 
     // FSM user interface outputs
     wire                        amci_widle = (write_state == 0 && amci_write == 0);     
@@ -110,11 +124,11 @@ module axi4_lite_master#
      wire wvalid_and_ready = M_AXI_WVALID  & M_AXI_WREADY;
      wire bvalid_and_ready = M_AXI_BVALID  & M_AXI_BREADY;
 
-    always @(posedge M_AXI_ACLK) begin
+    always @(posedge CLK) begin
 
 
         // If we're in RESET mode...
-        if (M_AXI_ARESETN == 0) begin
+        if (RESETN == 0) begin
             write_state   <= 0;
             m_axi_awvalid <= 0;
             m_axi_wvalid  <= 0;
@@ -159,6 +173,7 @@ module axi4_lite_master#
            // Wait around for the slave to assert "M_AXI_BVALID".  When it does, we'll acknowledge
            // it by raising M_AXI_BREADY for one cycle, and go back to idle state
            2:   if (bvalid_and_ready) begin
+                    amci_wresp   <= M_AXI_BRESP;
                     m_axi_bready <= 0;
                     write_state  <= 0;
                 end
@@ -168,6 +183,8 @@ module axi4_lite_master#
     //=========================================================================================================
 
 
+
+
     //=========================================================================================================
     // FSM logic used for reading from a slave device.
     //
@@ -175,7 +192,8 @@ module axi4_lite_master#
     //              amci_read  = Pulsed high for one cycle
     //
     //  At end:   Read is complete when "amci_ridle" goes high.
-    //            The data read is available in amci_rdata.
+    //            amci_rdata = The data that was read
+    //            amci_rresp = The AXI "read response" that is used to indicate success or failure
     //=========================================================================================================
     reg                         read_state = 0;
 
@@ -185,6 +203,7 @@ module axi4_lite_master#
 
     // FSM user interface outputs
     reg[C_AXI_DATA_WIDTH-1:0]   amci_rdata;
+    reg[1:0]                    amci_rresp;
     wire                        amci_ridle = (read_state == 0 && amci_read == 0);     
 
     // AXI registers and outputs
@@ -204,7 +223,6 @@ module axi4_lite_master#
             read_state    <= 0;
             m_axi_arvalid <= 0;
             m_axi_rready  <= 0;
-            led[5:0]      <= 0;
         end else case (read_state)
 
             // Here we are waiting around for someone to raise "amci_read", which signals us to begin
@@ -222,8 +240,9 @@ module axi4_lite_master#
             
             // Wait around for the slave to raise M_AXI_RVALID, which tells us that M_AXI_RDATA
             // contains the data we requested
-            1:  if (M_AXI_RVALID && M_AXI_RREADY) begin
+            1:  if (M_AXI_RVALID && M_AXI_RREADY) begsin
                     amci_rdata    <= M_AXI_RDATA;
+                    amci_rresp    <= M_AXI_RRESP;
                     m_axi_rready  <= 0;
                     m_axi_arvalid <= 0;
                     read_state    <= 0;
@@ -232,18 +251,6 @@ module axi4_lite_master#
         endcase
     end
     //=========================================================================================================
-
-
-
-
-    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
-    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
-    //  Below, we're goiing to wire the "amci_xxx" half of the interface to the input and output ports of
-    //  this module.   If you want to adapt this module to use custom drive logic (instead of using it as a
-    //  stand-alone AXI bus-master module), remove the wiring below, remove the AMCI ports from this module's
-    //  port list, and add your own custom logic below to drive the "amci" registers.
-    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
-    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
 
 
     //=========================================================================================================
