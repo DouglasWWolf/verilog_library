@@ -233,18 +233,17 @@ module printer#
            // don't know what order AWREADY and WREADY will come in, and they could both come at the same
            // time.      
            1:   begin   
-           
-                    // Keep track of whether we have seen the slave raise AWREADY and/or WREADY         
-                    if (avalid_and_ready) saw_waddr_ready <= 1;
-                    if (wvalid_and_ready) saw_wdata_ready <= 1; 
-                    
-                    // If we've seen AWREADY (or if its raised now) and if we've seen WREADY (or if it's raised now)...
+                     // If we've seen AWREADY (or if its raised now) and if we've seen WREADY (or if it's raised now)...
                     if ((saw_waddr_ready || avalid_and_ready) && (saw_wdata_ready || wvalid_and_ready)) begin
                         m_axi_awvalid <= 0;
                         m_axi_wvalid  <= 0;
                         write_state   <= 2;
                     end
-                end
+
+                    // Keep track of whether we have seen the slave raise AWREADY and/or WREADY         
+                    if (avalid_and_ready) saw_waddr_ready <= 1;
+                    if (wvalid_and_ready) saw_wdata_ready <= 1; 
+                 end
                 
            // Wait around for the slave to assert "M_AXI_BVALID".  When it does, we'll acknowledge
            // it by raising M_AXI_BREADY for one cycle, and go back to idle state
