@@ -240,9 +240,18 @@ module printer#
                         write_state   <= 2;
                     end
 
-                    // Keep track of whether we have seen the slave raise AWREADY and/or WREADY         
-                    if (avalid_and_ready) saw_waddr_ready <= 1;
-                    if (wvalid_and_ready) saw_wdata_ready <= 1; 
+                    // Keep track of whether we have seen the slave raise AWREADY
+                    if (avalid_and_ready) begin
+                        saw_waddr_ready <= 1;
+                        m_axi_awvalid   <= 0;
+                    end
+
+                    // Keep track of whether we have seen the slave raise WREADY
+                    if (wvalid_and_ready) begin
+                        saw_wdata_ready <= 1; 
+                        m_axi_wvalid    <= 0;
+                    end
+                    
                  end
                 
            // Wait around for the slave to assert "M_AXI_BVALID".  When it does, we'll acknowledge
