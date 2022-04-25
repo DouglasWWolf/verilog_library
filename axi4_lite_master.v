@@ -156,7 +156,13 @@ module axi4_lite_master#
            // don't know what order AWREADY and WREADY will come in, and they could both come at the same
            // time.      
            1:   begin   
-           
+                    // If we've seen AWREADY (or if its raised now) and if we've seen WREADY (or if it's raised now)...
+                    if ((saw_waddr_ready || avalid_and_ready) && (saw_wdata_ready || wvalid_and_ready)) begin
+                        m_axi_awvalid <= 0;
+                        m_axi_wvalid  <= 0;
+                        write_state   <= 2;
+                    end
+
                     // Keep track of whether we have seen the slave raise AWREADY
                     if (avalid_and_ready) begin
                         saw_waddr_ready <= 1;
@@ -167,13 +173,6 @@ module axi4_lite_master#
                     if (wvalid_and_ready) begin
                         saw_wdata_ready <= 1; 
                         m_axi_wvalid    <= 0;
-                    end
-                    
-                    // If we've seen AWREADY (or if its raised now) and if we've seen WREADY (or if it's raised now)...
-                    if ((saw_waddr_ready || avalid_and_ready) && (saw_wdata_ready || wvalid_and_ready)) begin
-                        m_axi_awvalid <= 0;
-                        m_axi_wvalid  <= 0;
-                        write_state   <= 2;
                     end
                 end
                 
