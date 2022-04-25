@@ -126,7 +126,6 @@ module axi4_lite_master#
 
     always @(posedge M_AXI_ACLK) begin
 
-
         // If we're in RESET mode...
         if (M_AXI_ARESETN == 0) begin
             write_state   <= 0;
@@ -158,9 +157,17 @@ module axi4_lite_master#
            // time.      
            1:   begin   
            
-                    // Keep track of whether we have seen the slave raise AWREADY and/or WREADY         
-                    if (avalid_and_ready) saw_waddr_ready <= 1;
-                    if (wvalid_and_ready) saw_wdata_ready <= 1; 
+                    // Keep track of whether we have seen the slave raise AWREADY
+                    if (avalid_and_ready) begin
+                        saw_waddr_ready <= 1;
+                        m_axi_awvalid   <= 0;
+                    end
+
+                    // Keep track of whether we have seen the slave raise WREADY
+                    if (wvalid_and_ready) begin
+                        saw_wdata_ready <= 1; 
+                        m_axi_wvalid    <= 0;
+                    end
                     
                     // If we've seen AWREADY (or if its raised now) and if we've seen WREADY (or if it's raised now)...
                     if ((saw_waddr_ready || avalid_and_ready) && (saw_wdata_ready || wvalid_and_ready)) begin
@@ -181,6 +188,7 @@ module axi4_lite_master#
         endcase
     end
     //=========================================================================================================
+
 
 
 
@@ -240,17 +248,26 @@ module axi4_lite_master#
             
             // Wait around for the slave to raise M_AXI_RVALID, which tells us that M_AXI_RDATA
             // contains the data we requested
-            1:  if (M_AXI_RVALID && M_AXI_RREADY) begin
-                    amci_rdata    <= M_AXI_RDATA;
-                    amci_rresp    <= M_AXI_RRESP;
-                    m_axi_rready  <= 0;
-                    m_axi_arvalid <= 0;
-                    read_state    <= 0;
+            1:  begin
+                    if (M_AXI_ARVALID && M_AXI_ARREADY) begin
+                        m_axi_arvalid <= 0;
+                    end
+
+                    if (M_AXI_RVALID && M_AXI_RREADY) begin
+                        amci_rdata    <= M_AXI_RDATA;
+                        amci_rresp    <= M_AXI_RRESP;
+                        m_axi_rready  <= 0;
+                        m_axi_arvalid <= 0;
+                        read_state    <= 0;
+                    end
                 end
 
         endcase
     end
     //=========================================================================================================
+
+
+
 
 
     //=========================================================================================================
