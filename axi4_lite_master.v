@@ -128,7 +128,7 @@ module axi4_lite_master#
 
 
         // If we're in RESET mode...
-        if (M_AXI_RESETN == 0) begin
+        if (M_AXI_ARESETN == 0) begin
             write_state   <= 0;
             m_axi_awvalid <= 0;
             m_axi_wvalid  <= 0;
@@ -219,7 +219,7 @@ module axi4_lite_master#
     //=========================================================================================================
     always @(posedge M_AXI_ACLK) begin
          
-        if (M_AXI_RESETN == 0) begin
+        if (M_AXI_ARESETN == 0) begin
             read_state    <= 0;
             m_axi_arvalid <= 0;
             m_axi_rready  <= 0;
