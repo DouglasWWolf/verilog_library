@@ -124,11 +124,11 @@ module axi4_lite_master#
      wire wvalid_and_ready = M_AXI_WVALID  & M_AXI_WREADY;
      wire bvalid_and_ready = M_AXI_BVALID  & M_AXI_BREADY;
 
-    always @(posedge CLK) begin
+    always @(posedge M_AXI_ACLK) begin
 
 
         // If we're in RESET mode...
-        if (RESETN == 0) begin
+        if (M_AXI_RESETN == 0) begin
             write_state   <= 0;
             m_axi_awvalid <= 0;
             m_axi_wvalid  <= 0;
@@ -217,9 +217,9 @@ module axi4_lite_master#
     assign M_AXI_ARPROT  = 3'b001;
     assign M_AXI_RREADY  = m_axi_rready;
     //=========================================================================================================
-    always @(posedge CLK) begin
+    always @(posedge M_AXI_ACLK) begin
          
-        if (RESETN == 0) begin
+        if (M_AXI_RESETN == 0) begin
             read_state    <= 0;
             m_axi_arvalid <= 0;
             m_axi_rready  <= 0;
