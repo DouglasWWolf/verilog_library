@@ -324,12 +324,17 @@ module printer#
             
             // Wait around for the slave to raise M_AXI_RVALID, which tells us that M_AXI_RDATA
             // contains the data we requested
-            1:  if (M_AXI_RVALID && M_AXI_RREADY) begin
-                    amci_rdata    <= M_AXI_RDATA;
-                    amci_rresp    <= M_AXI_RRESP;
-                    m_axi_rready  <= 0;
-                    m_axi_arvalid <= 0;
-                    read_state    <= 0;
+            1:  begin
+                    if (M_AXI_ARVALID && M_AXI_ARREADY)
+                        m_axi_arvalid <= 0;
+            
+                    if (M_AXI_RVALID && M_AXI_RREADY) begin
+                        amci_rdata    <= M_AXI_RDATA;
+                        amci_rresp    <= M_AXI_RRESP;
+                        m_axi_rready  <= 0;
+                        m_axi_arvalid <= 0;
+                        read_state    <= 0;
+                    end
                 end
 
         endcase
