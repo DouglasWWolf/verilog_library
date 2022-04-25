@@ -240,7 +240,7 @@ module axi4_lite_master#
             
             // Wait around for the slave to raise M_AXI_RVALID, which tells us that M_AXI_RDATA
             // contains the data we requested
-            1:  if (M_AXI_RVALID && M_AXI_RREADY) begsin
+            1:  if (M_AXI_RVALID && M_AXI_RREADY) begin
                     amci_rdata    <= M_AXI_RDATA;
                     amci_rresp    <= M_AXI_RRESP;
                     m_axi_rready  <= 0;
