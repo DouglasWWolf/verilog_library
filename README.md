@@ -1,2 +1,3 @@
 # verilog_library
-Library of handy verilog modules
+Library of various verilog modules and tools
+
