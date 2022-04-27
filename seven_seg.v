@@ -1,165 +1,116 @@
 `timescale 1ns / 1ps
 `define SYSCLOCK_FREQ 100000000
 
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 04/04/2022 10:14:48 AM
-// Design Name: 
-// Module Name: seven_seg
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
-
-
 //======================================================================================================================
-// binary_to_bcd() - Implements the classic "double dabble" algorithm
+// double_dabble() - Implements the classic "double dabble" binary-to-BCD algorithm
 //======================================================================================================================
-module binary_to_bcd#(parameter INPUT_WIDTH=1,  parameter DECIMAL_DIGITS=1)
-  (
-   input                         i_Clock,
-   input [INPUT_WIDTH-1:0]       i_Binary,
-   input                         i_Start,
-   //
-   output [DECIMAL_DIGITS*4-1:0] o_BCD,
-   output                        o_DV
-   );
+module double_dabble#(parameter INPUT_WIDTH=1,  parameter DECIMAL_DIGITS=1)
+(
+    input                         CLK, RESETN,
+    input [INPUT_WIDTH-1:0]       BINARY,
+    input                         START,
+    output [DECIMAL_DIGITS*4-1:0] BCD,
+    output                        DONE
+);
    
-  localparam s_IDLE              = 3'b000;
-  localparam s_SHIFT             = 3'b001;
-  localparam s_CHECK_SHIFT_INDEX = 3'b010;
-  localparam s_ADD               = 3'b011;
-  localparam s_CHECK_DIGIT_INDEX = 3'b100;
-  localparam s_BCD_DONE          = 3'b101;
+    localparam s_IDLE              = 3'b000;
+    localparam s_SHIFT             = 3'b001;
+    localparam s_CHECK_SHIFT_INDEX = 3'b010;
+    localparam s_ADD               = 3'b011;
+    localparam s_CHECK_DIGIT_INDEX = 3'b100;
    
-  reg [2:0] r_SM_Main = s_IDLE;
+    reg[2:0] state;
    
-  // The vector that contains the output BCD
-  reg [DECIMAL_DIGITS*4-1:0] r_BCD = 0;
+    // The vector that contains the output BCD
+    reg[DECIMAL_DIGITS*4-1:0]   bcd;
     
-  // The vector that contains the input binary value being shifted.
-  reg [INPUT_WIDTH-1:0]      r_Binary = 0;
+    // The vector that contains the input binary value being shifted.
+    reg[INPUT_WIDTH-1:0]        binary;
       
-  // Keeps track of which Decimal Digit we are indexing
-  reg [DECIMAL_DIGITS-1:0]   r_Digit_Index = 0;
+    // Keeps track of which Decimal Digit we are indexing
+    reg[DECIMAL_DIGITS-1:0]     digit_index;
     
-  // Keeps track of which loop iteration we are on.
-  // Number of loops performed = INPUT_WIDTH
-  reg [7:0]                  r_Loop_Count = 0;
- 
-  wire [3:0]                 w_BCD_Digit;
-  reg                        r_DV = 1'b0;                       
+    // Keeps track of which loop iteration we are on.
+    // Number of loops performed = INPUT_WIDTH
+    reg[7:0]                    loop_count;
+    wire[3:0]                   bcd_digit;
     
-  always @(posedge i_Clock)
-    begin
- 
-      case (r_SM_Main) 
+    always @(posedge CLK) begin
+        if (RESETN == 0) begin
+            state <= s_IDLE;
+        end else case (state) 
   
-        // Stay in this state until i_Start comes along
+        // Stay in this state until START comes along
         s_IDLE :
-          begin
-            r_DV <= 1'b0;
-             
-            if (i_Start == 1'b1)
-              begin
-                r_Binary  <= i_Binary;
-                r_SM_Main <= s_SHIFT;
-                r_BCD     <= 0;
-              end
-            else
-              r_SM_Main <= s_IDLE;
-          end
-                 
+            if (START) begin
+                binary      <= BINARY;
+                bcd         <= 0;
+                loop_count  <= 0;
+                digit_index <= 0;
+                state       <= s_SHIFT;
+            end
+
   
         // Always shift the BCD Vector until we have shifted all bits through
-        // Shift the most significant bit of r_Binary into r_BCD lowest bit.
+        // Shift the most significant bit of binary into bcd lowest bit.
         s_SHIFT :
-          begin
-            r_BCD     <= r_BCD << 1;
-            r_BCD[0]  <= r_Binary[INPUT_WIDTH-1];
-            r_Binary  <= r_Binary << 1;
-            r_SM_Main <= s_CHECK_SHIFT_INDEX;
-          end          
+            begin
+                bcd     <= bcd << 1;
+                bcd[0]  <= binary[INPUT_WIDTH-1];
+                binary  <= binary << 1;
+                state   <= s_CHECK_SHIFT_INDEX;
+            end          
          
   
-        // Check if we are done with shifting in r_Binary vector
+        // Check if we are done with shifting in binary vector
         s_CHECK_SHIFT_INDEX :
-          begin
-            if (r_Loop_Count == INPUT_WIDTH-1)
-              begin
-                r_Loop_Count <= 0;
-                r_SM_Main    <= s_BCD_DONE;
-              end
-            else
-              begin
-                r_Loop_Count <= r_Loop_Count + 1;
-                r_SM_Main    <= s_ADD;
-              end
-          end
-                 
+            if (loop_count == INPUT_WIDTH-1) begin
+               state       <= s_IDLE;
+            end else begin
+                loop_count <= loop_count + 1;
+                state      <= s_ADD;
+            end
+                
   
         // Break down each BCD Digit individually.  Check them one-by-one to
         // see if they are greater than 4.  If they are, increment by 3.
-        // Put the result back into r_BCD Vector.  
+        // Put the result back into bcd Vector.  
         s_ADD :
-          begin
-            if (w_BCD_Digit > 4)
-              begin                                     
-                r_BCD[(r_Digit_Index*4)+:4] <= w_BCD_Digit + 3;  
-              end
-             
-            r_SM_Main <= s_CHECK_DIGIT_INDEX; 
-          end       
+            begin
+                if (bcd_digit > 4) 
+                    bcd[(digit_index*4)+:4] <= bcd_digit + 3;  
+                state <= s_CHECK_DIGIT_INDEX; 
+            end       
          
          
         // Check if we are done incrementing all of the BCD Digits
         s_CHECK_DIGIT_INDEX :
-          begin
-            if (r_Digit_Index == DECIMAL_DIGITS-1)
-              begin
-                r_Digit_Index <= 0;
-                r_SM_Main     <= s_SHIFT;
-              end
-            else
-              begin
-                r_Digit_Index <= r_Digit_Index + 1;
-                r_SM_Main     <= s_ADD;
-              end
-          end
-         
-  
-  
-        s_BCD_DONE :
-          begin
-            r_DV      <= 1'b1;
-            r_SM_Main <= s_IDLE;
-          end
-         
+            if (digit_index == DECIMAL_DIGITS-1) begin
+                digit_index <= 0;
+                state       <= s_SHIFT;
+            end else begin
+                digit_index <= digit_index + 1;
+                state       <= s_ADD;
+            end
          
         default :
-          r_SM_Main <= s_IDLE;
+            state <= s_IDLE;
             
-      endcase
-    end // always @ (posedge i_Clock)  
+        endcase
+    end 
  
    
-  assign w_BCD_Digit = r_BCD[r_Digit_Index*4 +: 4];
-       
-  assign o_BCD = r_BCD;
-  assign o_DV  = r_DV;
+  assign bcd_digit = bcd[digit_index*4 +: 4];
+  assign BCD       = bcd;
+  assign DONE      = (state == s_IDLE && START == 0);
       
-endmodule // Binary_to_BCD
+endmodule 
 //======================================================================================================================
+
+
+
+
+
 
 //======================================================================================================================
 // clock_divider() - Generates a clock that changes state every 500 microsoconds (rising edge every 1 ms)
@@ -195,9 +146,9 @@ endmodule
 //======================================================================================================================
 // module seven_seg() - Drives two four-digit 7-segment displays
 //
-// Behavior of the C_STYLE parameter:
+// Behavior of the STYLE parameter:
 //
-//   For C_STYLE 0 thru 3 - the lower 16-bits of VALUE are displayed on the right display, 
+//   For STYLE 0 thru 3 - the lower 16-bits of VALUE are displayed on the right display, 
 //                        and the upper-16 bits of VALUE are displayed on the left display
 //
 //   0 = VALUE should be displayed hex on both displays
@@ -206,7 +157,7 @@ endmodule
 //   3 = Both displays are in decimal
 //   4 = All 32-bits of value are displayed as a single value in decimal
 //======================================================================================================================
-module seven_seg#(C_STYLE=3)
+module seven_seg#(STYLE=3)
 (
     input CLK, [31:0]VALUE,
     output [7:0]CATHODE, [7:0]ANODE
@@ -235,25 +186,25 @@ module seven_seg#(C_STYLE=3)
     wire [31:0] bcd_result;   
 
     // Binary to BCD decoding engine
-    binary_to_bcd#(.INPUT_WIDTH(32), .DECIMAL_DIGITS(8)) u2
+    double_dabble#(.INPUT_WIDTH(32), .DECIMAL_DIGITS(8)) bin2bcd
     (
-        .i_Clock(CLK),
-        .i_Binary(bcd_input),
-        .i_Start(bin_to_bcd_start),
-        .o_BCD(bcd_result),
-        .o_DV(bin_to_bcd_done)
+        .CLK    (CLK),
+        .RESETN (RESETN),
+        .BINARY (bcd_input),
+        .START  (bin_to_bcd_start),
+        .BCD    (bcd_result),
+        .DONE   (bin_to_bcd_done)
     );
     
-
-    // In C_STYLE 0, we simply drive VALUE directly out to the displays in hex
-    generate if (C_STYLE == 0)
+    // In STYLE 0, we simply drive VALUE directly out to the displays in hex
+    generate if (STYLE == 0)
         always @(posedge CLK) begin
             nybbles = VALUE;
         end
     endgenerate    
 
-    // In C_STYLE, the right-hand display is in decimal
-    generate if (C_STYLE == 1) begin
+    // In STYLE, the right-hand display is in decimal
+    generate if (STYLE == 1) begin
         reg is_idle = 1;
         always @(posedge CLK) begin
             bin_to_bcd_start <= 0;
@@ -272,8 +223,8 @@ module seven_seg#(C_STYLE=3)
     end
     endgenerate
 
-    // In C_STYLE 2, the left-hand display is in decimal
-    generate if (C_STYLE == 2) begin
+    // In STYLE 2, the left-hand display is in decimal
+    generate if (STYLE == 2) begin
         reg is_idle = 1;
         always @(posedge CLK) begin
             bin_to_bcd_start <= 0;
@@ -293,37 +244,49 @@ module seven_seg#(C_STYLE=3)
     endgenerate
 
 
-    // In C_STYLE 3, both displays are in decimal
-    generate if (C_STYLE == 3) begin
+    // In STYLE 3, both displays are in decimal
+    generate if (STYLE == 3) begin
         localparam LO_WORD = 1;
         localparam HI_WORD = 2;
-        reg[1:0] is_busy = 0;
+        reg[1:0] state = 0;
+        reg[1:0] initialized;
+        reg[15:0] old_lo, old_hi;
+        
         always @(posedge CLK) begin
             bin_to_bcd_start <= 0;
-            if (is_busy == 0) begin
-                if (bcd_input != VALUE[15:0]) begin
-                    is_busy <= LO_WORD;
-                    bcd_input <= VALUE[15:0];
-                    bin_to_bcd_start  <= 1;
-                end else if (bcd_input != VALUE[31:16]) begin
-                    is_busy <= HI_WORD;
-                    bcd_input <= VALUE[31:16];
-                    bin_to_bcd_start <= 1;
-                end
-            end else if (bin_to_bcd_done) begin
-                if (is_busy == LO_WORD)
-                    nybbles[15: 0] <= bcd_result[15:0];
-                else
-                    nybbles[31:16] <= bcd_result[15:0];
-                is_busy <= 0;
-            end
+            
+            case (state)
+                0:  if (!initialized[0] || old_lo != VALUE[15:0]) begin
+                        old_lo            <= VALUE[15:0];
+                        bcd_input         <= VALUE[15:0];
+                        bin_to_bcd_start  <= 1;
+                        initialized[0]    <= 1;
+                        state             <= 1;
+                    end else if (!initialized[1] || old_hi != VALUE[31:16]) begin
+                        old_hi            <= VALUE[31:16];
+                        bcd_input         <= VALUE[31:16];
+                        bin_to_bcd_start  <= 1;
+                        initialized[1]    <= 1;
+                        state             <= 2;
+                    end
+
+                1:  if (bin_to_bcd_done) begin
+                        nybbles[15: 0] <= bcd_result[15:0];
+                        state          <= 0;
+                    end
+            
+                2:  if (bin_to_bcd_done) begin
+                        nybbles[31:16] <= bcd_result[15:0];
+                        state          <= 0;
+                    end
+            endcase
         end
     end
     endgenerate
 
 
-    // In C_STYLE 4, all 32 bits of value are considered a single value to be displayed in decimal
-    generate if (C_STYLE == 4) begin    
+    // In STYLE 4, all 32 bits of value are considered a single value to be displayed in decimal
+    generate if (STYLE == 4) begin    
         reg is_idle = 1;
         always @(posedge CLK) begin
             if (is_idle) begin
@@ -392,5 +355,3 @@ module seven_seg#(C_STYLE=3)
 
 endmodule
 //======================================================================================================================
-
-
