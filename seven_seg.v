@@ -189,7 +189,7 @@ module seven_seg#(STYLE=3)
     double_dabble#(.INPUT_WIDTH(32), .DECIMAL_DIGITS(8)) bin2bcd
     (
         .CLK    (CLK),
-        .RESETN (RESETN),
+        .RESETN (1),
         .BINARY (bcd_input),
         .START  (bin_to_bcd_start),
         .BCD    (bcd_result),
