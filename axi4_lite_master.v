@@ -6,42 +6,30 @@
 
 module axi4_lite_master#
 (
-    parameter integer C_AXI_DATA_WIDTH = 32,
-    parameter integer C_AXI_ADDR_WIDTH = 32
+    parameter integer AXI_DATA_WIDTH = 32,
+    parameter integer AXI_ADDR_WIDTH = 32
 )
 (
-    
-    //====================== The user interface for writing ====================
-    
-    input  wire [C_AXI_ADDR_WIDTH-1:0] AMCI_WADDR,
-    input  wire [C_AXI_DATA_WIDTH-1:0] AMCI_WDATA,
-    input  wire                        AMCI_WRITE,
-    output wire                        AMCI_WIDLE,
+    //============================ The AMCI interface ==========================
+    input  wire[97:0] AMCI_MOSI,    // AMCI Master Out, Slave In
+    output wire[33:0] AMCI_MISO,    // AMCI Master In, Slave Out
     //==========================================================================
     
-    //====================== The user interface for reading ====================
-    input  wire [C_AXI_ADDR_WIDTH-1:0] AMCI_RADDR,
-    output wire [C_AXI_DATA_WIDTH-1:0] AMCI_RDATA,
-    input  wire                        AMCI_READ,
-    output wire                        AMCI_RIDLE,
-    //==========================================================================
-
-
 
     //================ From here down is the AXI4-Lite interface ===============
     input wire  M_AXI_ACLK,
     input wire  M_AXI_ARESETN,
         
     // "Specify write address"              -- Master --    -- Slave --
-    output wire [C_AXI_ADDR_WIDTH-1 : 0]    M_AXI_AWADDR,   
+    output wire [AXI_ADDR_WIDTH-1 : 0]      M_AXI_AWADDR,   
     output wire                             M_AXI_AWVALID,  
     input  wire                                             M_AXI_AWREADY,
     output wire  [2 : 0]                    M_AXI_AWPROT,
 
     // "Write Data"                         -- Master --    -- Slave --
-    output wire [C_AXI_DATA_WIDTH-1 : 0]    M_AXI_WDATA,      
+    output wire [AXI_DATA_WIDTH-1 : 0]      M_AXI_WDATA,      
     output wire                             M_AXI_WVALID,
-    output wire [(C_AXI_DATA_WIDTH/8)-1:0]  M_AXI_WSTRB,
+    output wire [(AXI_DATA_WIDTH/8)-1:0]    M_AXI_WSTRB,
     input  wire                                             M_AXI_WREADY,
 
     // "Send Write Response"                -- Master --    -- Slave --
@@ -50,13 +38,13 @@ module axi4_lite_master#
     output wire                             M_AXI_BREADY,
 
     // "Specify read address"               -- Master --    -- Slave --
-    output wire [C_AXI_ADDR_WIDTH-1 : 0]    M_AXI_ARADDR,     
+    output wire [AXI_ADDR_WIDTH-1 : 0]      M_AXI_ARADDR,     
     output wire                             M_AXI_ARVALID,
     output wire [2 : 0]                     M_AXI_ARPROT,     
     input  wire                                             M_AXI_ARREADY,
 
     // "Read data back to master"           -- Master --    -- Slave --
-    input  wire [C_AXI_DATA_WIDTH-1 : 0]                    M_AXI_RDATA,
+    input  wire [AXI_DATA_WIDTH-1 : 0]                      M_AXI_RDATA,
     input  wire                                             M_AXI_RVALID,
     input  wire [1 : 0]                                     M_AXI_RRESP,
     output wire                             M_AXI_RREADY
@@ -64,20 +52,7 @@ module axi4_lite_master#
 
 );
 
-    localparam C_AXI_DATA_BYTES = (C_AXI_DATA_WIDTH/8);
-
-
-
-
-    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
-    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
-    //  Below, we're goiing to wire the "amci_xxx" half of the interface to the input and output ports of
-    //  this module.   If you want to adapt this module to use custom drive logic (instead of using it as a
-    //  stand-alone AXI bus-master module), remove the wiring below, remove the AMCI ports from this module's
-    //  port list, and add your own custom logic below to drive the "amci" registers.
-    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
-    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
-
+    localparam AXI_DATA_BYTES = (AXI_DATA_WIDTH/8);
 
     //=========================================================================================================
     // FSM logic used for writing to the slave device.
@@ -92,8 +67,8 @@ module axi4_lite_master#
     reg[1:0]                    write_state = 0;
 
     // FSM user interface inputs
-    reg[C_AXI_ADDR_WIDTH-1:0]   amci_waddr;
-    reg[C_AXI_DATA_WIDTH-1:0]   amci_wdata;
+    reg[AXI_ADDR_WIDTH-1:0]     amci_waddr;
+    reg[AXI_DATA_WIDTH-1:0]     amci_wdata;
     reg                         amci_write;
     reg[2:0]                    amci_wresp;
 
@@ -101,8 +76,8 @@ module axi4_lite_master#
     wire                        amci_widle = (write_state == 0 && amci_write == 0);     
 
     // AXI registers and outputs
-    reg[C_AXI_ADDR_WIDTH-1:0]   m_axi_awaddr;
-    reg[C_AXI_DATA_WIDTH-1:0]   m_axi_wdata;
+    reg[AXI_ADDR_WIDTH-1:0]     m_axi_awaddr;
+    reg[AXI_DATA_WIDTH-1:0]     m_axi_wdata;
     reg                         m_axi_awvalid = 0;
     reg                         m_axi_wvalid = 0;
     reg                         m_axi_bready = 0;
@@ -115,7 +90,7 @@ module axi4_lite_master#
     assign M_AXI_AWVALID = m_axi_awvalid;
     assign M_AXI_WVALID  = m_axi_wvalid;
     assign M_AXI_AWPROT  = 3'b000;
-    assign M_AXI_WSTRB   = (1 << C_AXI_DATA_BYTES) - 1; // usually 4'b1111
+    assign M_AXI_WSTRB   = (1 << AXI_DATA_BYTES) - 1; // usually 4'b1111
     assign M_AXI_BREADY  = m_axi_bready;
     //=========================================================================================================
      
@@ -205,16 +180,16 @@ module axi4_lite_master#
     reg                         read_state = 0;
 
     // FSM user interface inputs
-    reg[C_AXI_ADDR_WIDTH-1:0]   amci_raddr;
+    reg[AXI_ADDR_WIDTH-1:0]     amci_raddr;
     reg                         amci_read;
 
     // FSM user interface outputs
-    reg[C_AXI_DATA_WIDTH-1:0]   amci_rdata;
+    reg[AXI_DATA_WIDTH-1:0]     amci_rdata;
     reg[1:0]                    amci_rresp;
     wire                        amci_ridle = (read_state == 0 && amci_read == 0);     
 
     // AXI registers and outputs
-    reg[C_AXI_ADDR_WIDTH-1:0]   m_axi_araddr;
+    reg[AXI_ADDR_WIDTH-1:0]     m_axi_araddr;
     reg                         m_axi_arvalid = 0;
     reg                         m_axi_rready;
 
@@ -266,7 +241,39 @@ module axi4_lite_master#
     //=========================================================================================================
 
 
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
+    //  Below, we're goiing to wire the "amci_xxx" half of the interface to the input and output ports of
+    //  this module.   If you want to adapt this module to use custom drive logic (instead of using it as a
+    //  stand-alone AXI bus-master module), remove the wiring below, remove the AMCI ports from this module's
+    //  port list, and add your own custom logic below to drive the "amci" registers.
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
+    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
 
+
+    //=========================================================================================================
+    // Break out the AMCI_MISO and AMCI_MISO interfaces into discrete ports
+    //=========================================================================================================
+    localparam AMCI_WADDR_OFFSET = 0;   localparam pa1 = AMCI_WADDR_OFFSET + AXI_ADDR_WIDTH;
+    localparam AMCI_WDATA_OFFSET = pa1; localparam pa2 = AMCI_WDATA_OFFSET + AXI_DATA_WIDTH;
+    localparam AMCI_RADDR_OFFSET = pa2; localparam pa3 = AMCI_RADDR_OFFSET + AXI_ADDR_WIDTH;
+    localparam AMCI_WRITE_OFFSET = pa3; localparam pa4 = AMCI_WRITE_OFFSET + 1;
+    localparam AMCI_READ_OFFSET  = pa4; localparam pa5 = AMCI_READ_OFFSET  + 1;
+
+    localparam AMCI_RDATA_OFFSET = 0;   localparam pb1 = AMCI_RDATA_OFFSET + AXI_DATA_WIDTH;
+    localparam AMCI_WIDLE_OFFSET = pb1; localparam pb2 = AMCI_WIDLE_OFFSET + 1;
+    localparam AMCI_RIDLE_OFFSET = pb2; localparam pb3 = AMCI_RIDLE_OFFSET + 1;
+
+    wire[AXI_ADDR_WIDTH-1:0] AMCI_WADDR = AMCI_MOSI[AMCI_WADDR_OFFSET +: AXI_ADDR_WIDTH];
+    wire[AXI_DATA_WIDTH-1:0] AMCI_WDATA = AMCI_MOSI[AMCI_WDATA_OFFSET +: AXI_DATA_WIDTH];
+    wire[AXI_ADDR_WIDTH-1:0] AMCI_RADDR = AMCI_MOSI[AMCI_RADDR_OFFSET +: AXI_ADDR_WIDTH];
+    wire AMCI_WRITE                     = AMCI_MOSI[AMCI_WRITE_OFFSET +: 1];
+    wire AMCI_READ                      = AMCI_MOSI[AMCI_READ_OFFSET  +: 1];
+
+    wire[AXI_DATA_WIDTH-1:0] AMCI_RDATA = AMCI_MISO[AMCI_RDATA_OFFSET +: AXI_DATA_WIDTH];
+    wire                     AMCI_WIDLE = AMCI_MISO[AMCI_WIDLE_OFFSET +: 1];
+    wire                     AMCI_RIDLE = AMCI_MISO[AMCI_RIDLE_OFFSET +: 1];
+    //=========================================================================================================
 
 
     //=========================================================================================================
