@@ -70,10 +70,10 @@ module axi4_lite_master#
     reg[AXI_ADDR_WIDTH-1:0]     amci_waddr;
     reg[AXI_DATA_WIDTH-1:0]     amci_wdata;
     reg                         amci_write;
-    reg[1:0]                    amci_wresp;
 
     // FSM user interface outputs
     wire                        amci_widle = (write_state == 0 && amci_write == 0);     
+    reg[1:0]                    amci_wresp;
 
     // AXI registers and outputs
     reg[AXI_ADDR_WIDTH-1:0]     m_axi_awaddr;
