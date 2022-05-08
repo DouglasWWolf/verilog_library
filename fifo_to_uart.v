@@ -4,24 +4,20 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module fifo_to_axi4lite#
+module fifo_to_uart#
 (
     parameter integer AXI_DATA_WIDTH = 32,
     parameter integer AXI_ADDR_WIDTH = 32,
-    parameter integer CMD_FIFO_WIDTH = 65,
-    parameter integer RSP_FIFO_WIDTH = 34
+    parameter integer XMIT_DEPTH = 1024,
+    parameter integer UART_ADDR  = 32'h4060_0000
 )
 (
-    // User writes to this FIFO to send data out the AXI4-Lite master interface 
+    // User writes to this FIFO to send data out the UART
     (* X_INTERFACE_MODE = "slave" *)
-    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_write:1.0 CMD_FIFO WR_DATA" *) input[CMD_FIFO_WIDTH-1:0] CMD_DATA,
-    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_write:1.0 CMD_FIFO FULL_N"  *) output                    CMD_FULL_N,
-    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_write:1.0 CMD_FIFO WR_EN"   *) input                     CMD_WREN,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_write:1.0 XMIT_FIFO WR_DATA" *) input[7:0] XMIT_DATA,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_write:1.0 XMIT_FIFO FULL_N"  *) output     XMIT_FULL_N,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_write:1.0 XMIT_FIFO WR_EN"   *) input      XMIT_WREN,
 
-    (* X_INTERFACE_MODE = "slave"*)
-    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_read:1.0 RSP_FIFO RD_DATA" *) output[RSP_FIFO_WIDTH-1:0] RSP_DATA,
-    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_read:1.0 RSP_FIFO EMPTY_N" *) output                     RSP_EMPTY_N,
-    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_read:1.0 RSP_FIFO RD_EN"   *) input                      RSP_RDEN,
 
 
     //================ From here down is the AXI4-Lite interface ===============
@@ -258,21 +254,21 @@ module fifo_to_axi4lite#
     localparam RW_FLAG = 64;
 
     // Registers and wires that interface to the command and response FIFOs
-    reg                      cmd_fifo_read, rsp_fifo_write;
-    wire                     cmd_fifo_empty, cmd_fifo_full;
-    wire                     rsp_fifo_empty;
-    wire[CMD_FIFO_WIDTH-1:0] cmd_fifo_data;
-    reg [RSP_FIFO_WIDTH-1:0] rsp_fifo_data;
+    reg       xmit_fifo_read,  recv_fifo_write;
+    wire      xmit_fifo_empty, xmit_fifo_full;
+    wire      recv_fifo_empty;
+    wire[7:0] xmit_fifo_data;
+    reg [7:0] recv_fifo_data;
     
     // Interfaces to/from the outside worlds
     wire RESET         = ~M_AXI_ARESETN;
-    assign CMD_FULL_N  = ~cmd_fifo_full;
-    assign RSP_EMPTY_N = ~rsp_fifo_empty;
+    assign XMIT_FULL_N = ~xmit_fifo_full;
+    assign RSP_EMPTY_N = ~recv_fifo_empty;
 
 
     //-------------------------------------------------------------------------------------------------
-    // This state machine reads commands on the cmd_fifo, carries out the command, and writes a 
-    // response to the rsp_fifo.
+    // This state machine reads commands on the xmit_fifo, carries out the command, and writes a 
+    // response to the recv_fifo.
     //
     // Read Commands:
     //      [64]    = 0
@@ -283,11 +279,11 @@ module fifo_to_axi4lite#
     //      [31: 0] = The address of the AXI register to write to
     //      [63:32] = The data to write at the specified address
     //-------------------------------------------------------------------------------------------------
-    reg[1:0] state;
+    reg state;
     always @(posedge M_AXI_ACLK) begin
         
-        cmd_fifo_read  <= 0;
-        rsp_fifo_write <= 0;
+        xmit_fifo_read  <= 0;
+        recv_fifo_write <= 0;
         amci_write     <= 0;
         amci_read      <= 0;
 
@@ -297,36 +293,22 @@ module fifo_to_axi4lite#
 
         // Here we wait for a command to arrive in the command FIFO.  When one arrives, we will 
         // examine the read/write flag and perform either an AXI read or an AXI write transaction
-        0:  if (!cmd_fifo_empty) begin
-                if (cmd_fifo_data[RW_FLAG]) begin
-                    amci_waddr    <= cmd_fifo_data[31: 0];
-                    amci_wdata    <= cmd_fifo_data[63:32];
-                    amci_write    <= 1;
-                    state         <= 1;
-                end else begin
-                    amci_raddr    <= cmd_fifo_data[31: 0];
-                    amci_read     <= 1;
-                    state         <= 2;
-                end
-                cmd_fifo_read <= 1;
+        0:  if (!xmit_fifo_empty) begin
+                amci_waddr     <= UART_ADDR + 4;
+                amci_wdata     <= xmit_fifo_data;
+                amci_write     <= 1;
+                xmit_fifo_read <= 1;
+                state          <= 1;
             end
         
-        // Here we are waiting for an AXI write transaction to complete.  When it does, 
-        // push the AXI B-channel response to the response FIFO
+        // Here we are waiting for an AXI write transaction to complete. 
         1:  if (amci_widle) begin
-                rsp_fifo_data  <= {amci_wresp, 32'hdeadbeef};
-                rsp_fifo_write <= 1;
-                state          <= 0;
+                if (amci_wresp == 0) begin
+                    state <= 0;
+                end else begin
+                    amci_write <= 1;
+                end
             end
-            
-        // Here we are waiting for an AXI read transaction to complete.  When it does,
-        // push the AXI R-channel response (along with the data read) to the response FIFO
-        2:  if (amci_ridle) begin
-                rsp_fifo_data  <= {amci_rresp, amci_rdata};
-                rsp_fifo_write <= 1;
-                state          <= 0;
-            end
-
         endcase
     end
     //-------------------------------------------------------------------------------------------------
@@ -341,17 +323,17 @@ module fifo_to_axi4lite#
       .ECC_MODE             ("no_ecc"),       
       .FIFO_MEMORY_TYPE     ("auto"), 
       .FIFO_READ_LATENCY    (1),     
-      .FIFO_WRITE_DEPTH     (16),    
+      .FIFO_WRITE_DEPTH     (XMIT_DEPTH),    
       .FULL_RESET_VALUE     (0),      
       .PROG_EMPTY_THRESH    (10),    
       .PROG_FULL_THRESH     (10),     
       .RD_DATA_COUNT_WIDTH  (1),   
-      .READ_DATA_WIDTH      (CMD_FIFO_WIDTH),
+      .READ_DATA_WIDTH      (8),
       .READ_MODE            ("fwft"),         
       .SIM_ASSERT_CHK       (0),        
       .USE_ADV_FEATURES     ("1000"), 
       .WAKEUP_TIME          (0),           
-      .WRITE_DATA_WIDTH     (CMD_FIFO_WIDTH), 
+      .WRITE_DATA_WIDTH     (8), 
       .WR_DATA_COUNT_WIDTH  (1)    
 
       //------------------------------------------------------------
@@ -360,82 +342,17 @@ module fifo_to_axi4lite#
       //.RELATED_CLOCKS(0),        // DECIMAL
       //------------------------------------------------------------
     )
-    xpm_cmd_fifo
+    xpm_xmit_fifo
     (
-        .rst        (RESET         ),                      
-        .full       (cmd_fifo_full ),              
-        .din        (CMD_DATA      ),                 
-        .wr_en      (CMD_WREN      ),            
-        .wr_clk     (M_AXI_ACLK    ),          
-        .data_valid (              ),  
-        .dout       (cmd_fifo_data ),              
-        .empty      (cmd_fifo_empty),            
-        .rd_en      (cmd_fifo_read ),            
-
-      //------------------------------------------------------------
-      // This only exists in xpm_fifo_async, not in xpm_fifo_sync
-      // .rd_clk    (CLK               ),                     
-      //------------------------------------------------------------
-
-        .sleep(),                        
-        .injectdbiterr(),                
-        .injectsbiterr(),                
-        .overflow(),                     
-        .prog_empty(),                   
-        .prog_full(),                    
-        .rd_data_count(),                
-        .rd_rst_busy(),                  
-        .sbiterr(),                      
-        .underflow(),                    
-        .wr_ack(),                       
-        .wr_data_count(),                
-        .wr_rst_busy(),                  
-        .almost_empty(),                 
-        .almost_full(),                  
-        .dbiterr()                       
-    );
-
-
-
-
-
-    xpm_fifo_sync #
-    (
-      .CASCADE_HEIGHT       (0),       
-      .DOUT_RESET_VALUE     ("0"),    
-      .ECC_MODE             ("no_ecc"),       
-      .FIFO_MEMORY_TYPE     ("auto"), 
-      .FIFO_READ_LATENCY    (1),     
-      .FIFO_WRITE_DEPTH     (16),    
-      .FULL_RESET_VALUE     (0),      
-      .PROG_EMPTY_THRESH    (10),    
-      .PROG_FULL_THRESH     (10),     
-      .RD_DATA_COUNT_WIDTH  (1),   
-      .READ_DATA_WIDTH      (RSP_FIFO_WIDTH),
-      .READ_MODE            ("fwft"),         
-      .SIM_ASSERT_CHK       (0),        
-      .USE_ADV_FEATURES     ("1000"), 
-      .WAKEUP_TIME          (0),           
-      .WRITE_DATA_WIDTH     (RSP_FIFO_WIDTH), 
-      .WR_DATA_COUNT_WIDTH  (1)    
-
-      //------------------------------------------------------------
-      // These exist only in xpm_fifo_async, not in xpm_fifo_sync
-      //.CDC_SYNC_STAGES(2),       // DECIMAL
-      //.RELATED_CLOCKS(0),        // DECIMAL
-      //------------------------------------------------------------
-    )
-    xpm_rsp_fifo
-    (
-        .rst        (RESET         ),                      
-        .full       (              ),              
-        .din        (rsp_fifo_data ),                 
-        .wr_en      (rsp_fifo_write),            
-        .wr_clk     (M_AXI_ACLK    ),          
-        .data_valid (              ),  
-        .dout       (RSP_DATA      ),              
-        .empty      (rsp_fifo_empty),            
-        .rd_en      (RSP_RDEN      ),            
+        .rst        (RESET          ),                      
+        .full       (xmit_fifo_full ),              
+        .din        (XMIT_DATA      ),                 
+        .wr_en      (XMIT_WREN      ),            
+        .wr_clk     (M_AXI_ACLK     ),          
+        .data_valid (               ),  
+        .dout       (xmit_fifo_data ),              
+        .empty      (xmit_fifo_empty),            
+        .rd_en      (xmit_fifo_read ),            
 
       //------------------------------------------------------------
       // This only exists in xpm_fifo_async, not in xpm_fifo_sync
