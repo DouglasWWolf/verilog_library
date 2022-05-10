@@ -6,10 +6,12 @@
 
 module fifo_to_uart#
 (
-    parameter integer AXI_DATA_WIDTH = 32,
-    parameter integer AXI_ADDR_WIDTH = 32,
-    parameter integer XMIT_DEPTH = 1024,
-    parameter integer UART_ADDR  = 32'h4060_0000
+    parameter integer AXI_DATA_WIDTH  = 32,
+    parameter integer AXI_ADDR_WIDTH  = 32,
+    parameter integer XMIT_DEPTH      = 1024,
+    parameter integer RECV_DEPTH      = 16,
+    parameter integer UART_ADDR       = 32'h4060_0000,
+    parameter integer CLOCKS_PER_USEC = 125
 )
 (
     // User writes to this FIFO to send data out the UART
@@ -18,7 +20,15 @@ module fifo_to_uart#
     (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_write:1.0 XMIT_FIFO FULL_N"  *) output     XMIT_FULL_N,
     (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_write:1.0 XMIT_FIFO WR_EN"   *) input      XMIT_WREN,
 
+    // User reads from this FIFO to receive data from the UART
+    (* X_INTERFACE_MODE = "slave" *)
+    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_read:1.0 RECV_FIFO RD_DATA" *) output[7:0] RECV_DATA,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_read:1.0 RECV_FIFO EMPTY_N" *) output      RECV_EMPTY_N,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_read:1.0 RECV_FIFO RD_EN"   *) input       RECV_RDEN,
 
+
+    // This is the interrupt from the UART 
+    input UART_INT,
 
     //================ From here down is the AXI4-Lite interface ===============
     input wire  M_AXI_ACLK,
@@ -250,64 +260,118 @@ module fifo_to_uart#
     //                               End of AXI4 Lite Master state machines
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
- 
-    localparam RW_FLAG = 64;
 
-    // Registers and wires that interface to the command and response FIFOs
-    reg       xmit_fifo_read,  recv_fifo_write;
-    wire      xmit_fifo_empty, xmit_fifo_full;
-    wire      recv_fifo_empty;
+    // These are the registers in a Xilinx AXI UART-Lite
+    localparam UART_RX   = UART_ADDR +  0; 
+    localparam UART_TX   = UART_ADDR +  4;
+    localparam UART_STAT = UART_ADDR +  8;
+    localparam UART_CTRL = UART_ADDR + 12;
+
+    // Registers and wires that interface to the TX FIFO
+    reg       xmit_fifo_read;
+    wire      xmit_fifo_empty;
+    wire      xmit_fifo_full;
     wire[7:0] xmit_fifo_data;
-    reg [7:0] recv_fifo_data;
-    
+
+    // Registers and wires that interface to the RX FIFO
+    reg       recv_fifo_write;
+    reg[7:0]  recv_fifo_data;    
+    wire      recv_fifo_empty;
+
     // Interfaces to/from the outside worlds
     wire RESET         = ~M_AXI_ARESETN;
     assign XMIT_FULL_N = ~xmit_fifo_full;
-    assign RSP_EMPTY_N = ~recv_fifo_empty;
-
-
+    assign RECV_EMPTY_N = ~recv_fifo_empty;
+    
     //-------------------------------------------------------------------------------------------------
-    // This state machine reads commands on the xmit_fifo, carries out the command, and writes a 
-    // response to the recv_fifo.
-    //
-    // Read Commands:
-    //      [64]    = 0
-    //      [31: 0] = The address of the AXI register to read
-    //
-    // Write Commands:
-    //      [64]    = 1
-    //      [31: 0] = The address of the AXI register to write to
-    //      [63:32] = The data to write at the specified address
+    // State machine that manages the TX side of the UART
     //-------------------------------------------------------------------------------------------------
-    reg state;
+    reg[1:0] tx_state;
+
     always @(posedge M_AXI_ACLK) begin
         
-        xmit_fifo_read  <= 0;
-        recv_fifo_write <= 0;
+        xmit_fifo_read <= 0;
         amci_write     <= 0;
-        amci_read      <= 0;
 
         if (M_AXI_ARESETN == 0) begin
-            state <= 0;
-        end else case(state)
+            tx_state <= 0;
+        end else case(tx_state)
 
-        // Here we wait for a command to arrive in the command FIFO.  When one arrives, we will 
-        // examine the read/write flag and perform either an AXI read or an AXI write transaction
-        0:  if (!xmit_fifo_empty) begin
-                amci_waddr     <= UART_ADDR + 4;
+        // Initialize the UART by enabling interrupts
+        0:  begin
+                amci_waddr <= UART_CTRL;
+                amci_wdata <= (1<<4);
+                amci_write <= 1;
+                tx_state   <= 1;
+            end
+
+        // Here we wait for a character to arrive in the incoming TX fifo.   When one does, 
+        // we will send it to the UART, acknowledge the TX fifo, and go wait for the AXI
+        // transaction to complete.
+        1:  if (amci_widle && !xmit_fifo_empty) begin
+                amci_waddr     <= UART_TX;
                 amci_wdata     <= xmit_fifo_data;
                 amci_write     <= 1;
                 xmit_fifo_read <= 1;
-                state          <= 1;
+                tx_state       <= 2;
             end
-        
+
         // Here we are waiting for an AXI write transaction to complete. 
-        1:  if (amci_widle) begin
+        2:  if (amci_widle) begin
                 if (amci_wresp == 0) begin
-                    state <= 0;
+                    tx_state <= 1;
                 end else begin
                     amci_write <= 1;
                 end
+            end
+        endcase
+    end
+    //-------------------------------------------------------------------------------------------------
+
+
+
+    //-------------------------------------------------------------------------------------------------
+    // State machine that manages the RX side of the UART
+    //-------------------------------------------------------------------------------------------------
+    reg[1:0] rx_state;
+    always @(posedge M_AXI_ACLK) begin
+        
+        recv_fifo_write <= 0;
+        amci_read       <= 0;
+   
+        if (M_AXI_ARESETN == 0) begin
+            rx_state <= 0;
+        end else case(rx_state)
+
+        // Here we are waiting for an interrupt from the UART.  When one happens, we will
+        // start a read of the UART status register
+        0:  if (UART_INT) begin
+                amci_raddr <= UART_STAT;
+                amci_read  <= 1;
+                rx_state   <= 1;
+            end
+
+        // Wait for the read of the UART status register to complete.  When it does, if 
+        // it tells us that there is an incoming character waiting for us, start a read
+        // of the UART's RX register
+        1:  if (amci_ridle) begin
+                if (amci_rdata[0]) begin
+                    amci_raddr <= UART_RX;
+                    amci_read  <= 1;
+                    rx_state   <= 2;
+                end else
+                    rx_state   <= 0;
+            end
+
+        // Here we wait for the read of the UART RX register to complete.  If it completes
+        // succesfully, we will stuff the received byte into the RX FIFO so it can be fetched
+        // by the user
+        2:  if (amci_ridle) begin
+                if (amci_rresp == 0) begin
+                    recv_fifo_data  <= amci_rdata[7:0];
+                    recv_fifo_write <= 1;
+                end
+                rx_state <= 0;
             end
         endcase
     end
@@ -376,5 +440,68 @@ module fifo_to_uart#
         .almost_full(),                  
         .dbiterr()                       
     );
+
+    xpm_fifo_sync #
+    (
+      .CASCADE_HEIGHT       (0),       
+      .DOUT_RESET_VALUE     ("0"),    
+      .ECC_MODE             ("no_ecc"),       
+      .FIFO_MEMORY_TYPE     ("auto"), 
+      .FIFO_READ_LATENCY    (1),     
+      .FIFO_WRITE_DEPTH     (RECV_DEPTH),    
+      .FULL_RESET_VALUE     (0),      
+      .PROG_EMPTY_THRESH    (10),    
+      .PROG_FULL_THRESH     (10),     
+      .RD_DATA_COUNT_WIDTH  (1),   
+      .READ_DATA_WIDTH      (8),
+      .READ_MODE            ("fwft"),         
+      .SIM_ASSERT_CHK       (0),        
+      .USE_ADV_FEATURES     ("1000"), 
+      .WAKEUP_TIME          (0),           
+      .WRITE_DATA_WIDTH     (8), 
+      .WR_DATA_COUNT_WIDTH  (1)    
+
+      //------------------------------------------------------------
+      // These exist only in xpm_fifo_async, not in xpm_fifo_sync
+      //.CDC_SYNC_STAGES(2),       // DECIMAL
+      //.RELATED_CLOCKS(0),        // DECIMAL
+      //------------------------------------------------------------
+    )
+    xpm_recv_fifo
+    (
+        .rst        (RESET          ),                      
+        .full       (               ),              
+        .din        (recv_fifo_data ),                 
+        .wr_en      (recv_fifo_write),            
+        .wr_clk     (M_AXI_ACLK     ),          
+        .data_valid (               ),  
+        .dout       (RECV_DATA      ),
+        .empty      (recv_fifo_empty),
+        .rd_en      (RECV_RDEN      ),
+
+      //------------------------------------------------------------
+      // This only exists in xpm_fifo_async, not in xpm_fifo_sync
+      // .rd_clk    (CLK               ),                     
+      //------------------------------------------------------------
+
+        .sleep(),                        
+        .injectdbiterr(),                
+        .injectsbiterr(),                
+        .overflow(),                     
+        .prog_empty(),                   
+        .prog_full(),                    
+        .rd_data_count(),                
+        .rd_rst_busy(),                  
+        .sbiterr(),                      
+        .underflow(),                    
+        .wr_ack(),                       
+        .wr_data_count(),                
+        .wr_rst_busy(),                  
+        .almost_empty(),                 
+        .almost_full(),                  
+        .dbiterr()                       
+    );
+
+
 
 endmodule
