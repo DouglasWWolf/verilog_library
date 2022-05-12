@@ -10,8 +10,7 @@ module fifo_to_uart#
     parameter integer AXI_ADDR_WIDTH  = 32,
     parameter integer XMIT_DEPTH      = 1024,
     parameter integer RECV_DEPTH      = 16,
-    parameter integer UART_ADDR       = 32'h4060_0000,
-    parameter integer CLOCKS_PER_USEC = 125
+    parameter integer UART_ADDR       = 32'h4060_0000
 )
 (
     // User writes to this FIFO to send data out the UART
