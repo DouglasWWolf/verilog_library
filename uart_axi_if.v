@@ -255,7 +255,16 @@ module uart_axi_if#
     reg[ 3:0] inp_count;                     // The number of bytes stored in inp_buff;
     reg[ 3:0] inp_last_idx;                  // Number of bytes that make up the current command
     reg[ 7:0] inp_buff[0:INP_BUFF_SIZE-1];   // Buffer of bytes rcvd from the UART
-    reg[31:0] read_data;                     // Data returned from an AXI read
+    
+    // This holds the data we read during an AXI-Read transaction.   The assign statements
+    // are a convenient way to make the bit-packed register byte-addressable
+    reg[31:0] read_data;        
+    wire[7:0] read_data_char[0:3];
+    assign read_data_char[0] = read_data[31:24];
+    assign read_data_char[1] = read_data[23:16];
+    assign read_data_char[2] = read_data[15: 8];
+    assign read_data_char[3] = read_data[ 7: 0];
+
 
     always @(posedge M_AXI_ACLK) begin
         amci_write <= 0;
@@ -334,6 +343,7 @@ module uart_axi_if#
                 inp_state  <= inp_state + 1;
             end
 
+        // Send the AXI read-response byte
         S_AXI_READ+1:
             if (amci_ridle) begin
                 read_data  <= amci_rdata;
@@ -341,44 +351,21 @@ module uart_axi_if#
                 amci_wdata <= amci_rresp;
                 amci_write <= 1;
                 inp_state  <= inp_state + 1;
+                inp_count  <= 0;
             end
 
+        // Send the 4-bytes of read-data, one byte at a time
         S_AXI_READ+2:
             if (amci_widle) begin
-                amci_waddr <= UART_TX;
-                amci_wdata <= read_data[31:24];
-                amci_write <= 1;
-                inp_state  <= inp_state + 1;
+                if (inp_count == 4)
+                    inp_state  <= S_NEW_COMMAND;
+                else begin
+                    amci_waddr <= UART_TX;
+                    amci_wdata <= read_data_char[inp_count];
+                    amci_write <= 1;
+                    inp_count  <= inp_count + 1;
+                end 
             end
-        
-        S_AXI_READ+3:
-            if (amci_widle) begin
-                amci_waddr <= UART_TX;
-                amci_wdata <= read_data[23:16];
-                amci_write <= 1;
-                inp_state  <= inp_state + 1;
-            end
-        
-        S_AXI_READ+4:
-            if (amci_widle) begin
-                amci_waddr <= UART_TX;
-                amci_wdata <= read_data[15:8];
-                amci_write <= 1;
-                inp_state  <= inp_state + 1;
-            end
-        
-        S_AXI_READ+5:
-            if (amci_widle) begin
-                amci_waddr <= UART_TX;
-                amci_wdata <= read_data[7:0];
-                amci_write <= 1;
-                inp_state  <= inp_state + 1;
-            end
-
-        S_AXI_READ+6:
-            if (amci_widle) inp_state <= S_NEW_COMMAND;
-
-
 
         // Start the AXI write transaction specified by the user
         S_AXI_WRITE:
@@ -398,7 +385,7 @@ module uart_axi_if#
                 inp_state  <= inp_state + 1;
             end
 
-        // When the write-response has finished sending, go wait for a new command
+        // When the write-response has finished sending, go wait for a new command to arrive on the UART
         S_AXI_WRITE+2:
             if (amci_widle) inp_state <= S_NEW_COMMAND;
 
