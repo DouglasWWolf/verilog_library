@@ -13,7 +13,8 @@ module uart_axi_if#
 (
     parameter integer AXI_DATA_WIDTH = 32,
     parameter integer AXI_ADDR_WIDTH = 32,
-    parameter integer UART_BASE = 32'h4060_0000
+    parameter integer UART_BASE      = 32'h4060_0000,
+    parameter integer CLOCK_FREQ     = 100000000
 )
 (
     input wire UART_INT,
@@ -239,10 +240,13 @@ module uart_axi_if#
     localparam UART_TX   = UART_BASE + 4;
     localparam UART_STAT = UART_BASE + 8;
     localparam UART_CTRL = UART_BASE + 12;
-    localparam UART_INT_ENABLE = (1 << 4);
-    localparam INP_BUFF_SIZE   = 9;
-    localparam CMD_READ        = 1;
-    localparam CMD_WRITE       = 2;
+    
+    localparam UART_INT_ENABLE   = (1 << 4);
+    localparam INP_BUFF_SIZE     = 9;
+    localparam CMD_READ          = 1;
+    localparam CMD_WRITE         = 2;
+    localparam RESET_STRETCH_MAX = 16;
+    localparam HUNDRED_MSEC      = CLOCK_FREQ / 10;
 
     localparam S_NEW_COMMAND     = 1;
     localparam S_WAIT_NEXT_CHAR  = 2;
@@ -255,6 +259,8 @@ module uart_axi_if#
     reg[ 3:0] inp_count;                     // The number of bytes stored in inp_buff;
     reg[ 3:0] inp_last_idx;                  // Number of bytes that make up the current command
     reg[ 7:0] inp_buff[0:INP_BUFF_SIZE-1];   // Buffer of bytes rcvd from the UART
+    reg[ 7:0] reset_stretch;                 // # of consecutive "X" characters received
+    reg[31:0] reset_clk_counter;             // Counts down clock cycles list last byte rcvd from UART
     
     // This holds the data we read during an AXI-Read transaction.   The assign statements
     // are a convenient way to make the bit-packed register byte-addressable
@@ -270,9 +276,14 @@ module uart_axi_if#
         amci_write <= 0;
         amci_read  <= 0;
 
+        // Countdown since the last time a character was received
+        if (reset_clk_counter) reset_clk_counter <= reset_clk_counter - 1;
+
+        // If the RESET line is active...
         if (M_AXI_ARESETN == 0) begin
-            inp_state <= 0;
-            inp_count <= 0;
+            inp_state         <= 0;
+            reset_stretch     <= 0;
+            reset_clk_counter <= 0;
         end else case(inp_state)
         
         // Enable UART interrupts
@@ -288,13 +299,24 @@ module uart_axi_if#
             begin
                 inp_count <= 0;
                 inp_state <= S_WAIT_NEXT_CHAR;
-            end
+            end 
 
         S_WAIT_NEXT_CHAR:
-            if (UART_INT) begin                     // If a UART interrupt has occured...
-                amci_raddr <= UART_STAT;            //   We're going to read the status register
-                amci_read  <= 1;                    //   Initiate that read transaction
-                inp_state  <= S_WAIT_FOR_STATUS;    //   And go wait for the transaction to complete
+            begin
+                // If 100 milliseconds elapses since receiving the last character and the reset_stretch
+                // is at max, empty our buffer to prepare for a new incoming command.  This mechanism
+                // exists to provide a method to put the input buffer in a known state.
+                if (reset_clk_counter == 1) begin
+                    if (reset_stretch == RESET_STRETCH_MAX) begin
+                        inp_count <= 0;
+                    end
+                end
+                
+                if (UART_INT) begin                     // If a UART interrupt has occured...
+                    amci_raddr <= UART_STAT;            //   We're going to read the status register
+                    amci_read  <= 1;                    //   Initiate that read transaction
+                    inp_state  <= S_WAIT_FOR_STATUS;    //   And go wait for the transaction to complete
+                end
             end
 
         S_WAIT_FOR_STATUS:
@@ -309,27 +331,35 @@ module uart_axi_if#
             end
 
         S_FETCH_BYTE: 
-            if (amci_ridle) begin                        // Wait to receive a byte from the UART
-                inp_buff[inp_count] <= amci_rdata;
-                inp_state           <= S_WAIT_NEXT_CHAR;
+            if (amci_ridle) begin                           // Wait to receive a byte from the UART
+                reset_clk_counter   <= HUNDRED_MSEC;        // Reset the "clocks since char received" 
+                inp_buff[inp_count] <= amci_rdata;          // Save the byte we just received
+                inp_state           <= S_WAIT_NEXT_CHAR;    // When we're done, we'll go wait for the next character
+
+                // Keep track of how many times in a row we receive "X"
+                if (amci_rdata == "X") begin
+                    if (reset_stretch != RESET_STRETCH_MAX)
+                        reset_stretch <= reset_stretch + 1;
+                end else reset_stretch <= 0;
+
+                // If this is the first byte of a new command...
+                if (inp_count == 0) begin              
+                    if (amci_rdata == CMD_READ) begin
+                        inp_last_idx <= 4;
+                        inp_count    <= 1;
+                    end else if (amci_rdata == CMD_WRITE) begin
+                        inp_last_idx <= 8;
+                        inp_count    <= 1;
+                    end
+                end
                 
-                if (inp_count == 0) begin
-                    case(amci_rdata)
-                    CMD_READ: begin
-                                inp_last_idx <= 4;
-                                inp_count    <= 1;
-                              end
-
-                    CMD_WRITE: begin
-                                inp_last_idx <= 8;
-                                inp_count    <= 1;
-                               end
-                    endcase
-
-                end else if (inp_count == inp_last_idx) begin
+                // Otherwise, if it's the last byte of a command..
+                else if (inp_count == inp_last_idx) begin
                     inp_state <= (inp_buff[0] == CMD_READ) ? S_AXI_READ : S_AXI_WRITE;
-                
-                end else begin
+                end
+
+                // Otherwise, just keep track of how many bytes we've received from the UART
+                else begin
                     inp_count <= inp_count + 1;
                 end
             end
