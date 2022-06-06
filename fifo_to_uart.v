@@ -8,22 +8,22 @@ module fifo_to_uart#
 (
     parameter integer AXI_DATA_WIDTH  = 32,
     parameter integer AXI_ADDR_WIDTH  = 32,
-    parameter integer XMIT_DEPTH      = 1024,
+    parameter integer XMIT_DEPTH      = 16,
     parameter integer RECV_DEPTH      = 16,
     parameter integer UART_ADDR       = 32'h4060_0000
 )
 (
     // User writes to this FIFO to send data out the UART
     (* X_INTERFACE_MODE = "slave" *)
-    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_write:1.0 XMIT_FIFO WR_DATA" *) input[7:0] XMIT_DATA,
-    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_write:1.0 XMIT_FIFO FULL_N"  *) output     XMIT_FULL_N,
-    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_write:1.0 XMIT_FIFO WR_EN"   *) input      XMIT_WREN,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_write:1.0 UART_TX_FIFO WR_DATA" *) input[7:0] XMIT_DATA,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_write:1.0 UART_TX_FIFO FULL_N"  *) output     XMIT_FULL_N,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_write:1.0 UART_TX_FIFO WR_EN"   *) input      XMIT_WREN,
 
     // User reads from this FIFO to receive data from the UART
     (* X_INTERFACE_MODE = "slave" *)
-    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_read:1.0 RECV_FIFO RD_DATA" *) output[7:0] RECV_DATA,
-    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_read:1.0 RECV_FIFO EMPTY_N" *) output      RECV_EMPTY_N,
-    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_read:1.0 RECV_FIFO RD_EN"   *) input       RECV_RDEN,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_read:1.0 UART_RX_FIFO RD_DATA" *) output[7:0] RECV_DATA,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_read:1.0 UART_RX_FIFO EMPTY_N" *) output      RECV_EMPTY_N,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:acc_fifo_read:1.0 UART_RX_FIFO RD_EN"   *) input       RECV_RDEN,
 
 
     // This is the interrupt from the UART 
@@ -67,6 +67,13 @@ module fifo_to_uart#
 
     localparam AXI_DATA_BYTES = (AXI_DATA_WIDTH/8);
 
+    // Define the handshakes for all 5 AXI channels
+    wire B_HANDSHAKE  = M_AXI_BVALID  & M_AXI_BREADY;
+    wire R_HANDSHAKE  = M_AXI_RVALID  & M_AXI_RREADY;
+    wire W_HANDSHAKE  = M_AXI_WVALID  & M_AXI_WREADY;
+    wire AR_HANDSHAKE = M_AXI_ARVALID & M_AXI_ARREADY;
+    wire AW_HANDSHAKE = M_AXI_AWVALID & M_AXI_AWREADY;
+
     //=========================================================================================================
     // FSM logic used for writing to the slave device.
     //
@@ -83,7 +90,7 @@ module fifo_to_uart#
     reg[AXI_ADDR_WIDTH-1:0]     amci_waddr;
     reg[AXI_DATA_WIDTH-1:0]     amci_wdata;
     reg                         amci_write;
-    
+
     // FSM user interface outputs
     wire                        amci_widle = (write_state == 0 && amci_write == 0);     
     reg[1:0]                    amci_wresp;
@@ -94,8 +101,6 @@ module fifo_to_uart#
     reg                         m_axi_awvalid = 0;
     reg                         m_axi_wvalid = 0;
     reg                         m_axi_bready = 0;
-    reg                         saw_waddr_ready = 0;
-    reg                         saw_wdata_ready = 0;
 
     // Wire up the AXI interface outputs
     assign M_AXI_AWADDR  = m_axi_awaddr;
@@ -107,11 +112,6 @@ module fifo_to_uart#
     assign M_AXI_BREADY  = m_axi_bready;
     //=========================================================================================================
      
-     // Define states that say "An xVALID signal and its corresponding xREADY signal are both asserted"
-     wire avalid_and_ready = M_AXI_AWVALID & M_AXI_AWREADY;
-     wire wvalid_and_ready = M_AXI_WVALID  & M_AXI_WREADY;
-     wire bvalid_and_ready = M_AXI_BVALID  & M_AXI_BREADY;
-
     always @(posedge M_AXI_ACLK) begin
 
         // If we're in RESET mode...
@@ -129,8 +129,6 @@ module fifo_to_uart#
             // we'll place the user specified address and data onto the AXI bus, along with the flags that
             // indicate that the address and data values are valid
             0:  if (amci_write) begin
-                    saw_waddr_ready <= 0;           // The slave has not yet asserted AWREADY
-                    saw_wdata_ready <= 0;           // The slave has not yet asserted WREADY
                     m_axi_awaddr    <= amci_waddr;  // Place our address onto the bus
                     m_axi_wdata     <= amci_wdata;  // Place our data onto the bus
                     m_axi_awvalid   <= 1;           // Indicate that the address is valid
@@ -144,29 +142,19 @@ module fifo_to_uart#
            // don't know what order AWREADY and WREADY will come in, and they could both come at the same
            // time.      
            1:   begin   
+                    // Keep track of whether we have seen the slave raise AWREADY or WREADY
+                    if (AW_HANDSHAKE) m_axi_awvalid <= 0;
+                    if (W_HANDSHAKE ) m_axi_wvalid  <= 0;
+
                     // If we've seen AWREADY (or if its raised now) and if we've seen WREADY (or if it's raised now)...
-                    if ((saw_waddr_ready || avalid_and_ready) && (saw_wdata_ready || wvalid_and_ready)) begin
-                        m_axi_awvalid <= 0;
-                        m_axi_wvalid  <= 0;
-                        write_state   <= 2;
-                    end
-
-                    // Keep track of whether we have seen the slave raise AWREADY
-                    if (avalid_and_ready) begin
-                        saw_waddr_ready <= 1;
-                        m_axi_awvalid   <= 0;
-                    end
-
-                    // Keep track of whether we have seen the slave raise WREADY
-                    if (wvalid_and_ready) begin
-                        saw_wdata_ready <= 1; 
-                        m_axi_wvalid    <= 0;
+                    if ((~m_axi_awvalid || AW_HANDSHAKE) && (~m_axi_wvalid || W_HANDSHAKE)) begin
+                        write_state <= 2;
                     end
                 end
                 
-           // Wait around for the slave to assert "M_AXI_BVALID".  When it does, we'll acknowledge
-           // it by raising M_AXI_BREADY for one cycle, and go back to idle state
-           2:   if (bvalid_and_ready) begin
+           // Wait around for the slave to assert "M_AXI_BVALID".  When it does, we'll capture M_AXI_BRESP
+           // and go back to idle state
+           2:   if (B_HANDSHAKE) begin
                     amci_wresp   <= M_AXI_BRESP;
                     m_axi_bready <= 0;
                     write_state  <= 0;
@@ -236,15 +224,14 @@ module fifo_to_uart#
             // Wait around for the slave to raise M_AXI_RVALID, which tells us that M_AXI_RDATA
             // contains the data we requested
             1:  begin
-                    if (M_AXI_ARVALID && M_AXI_ARREADY) begin
+                    if (AR_HANDSHAKE) begin
                         m_axi_arvalid <= 0;
                     end
 
-                    if (M_AXI_RVALID && M_AXI_RREADY) begin
+                    if (R_HANDSHAKE) begin
                         amci_rdata    <= M_AXI_RDATA;
                         amci_rresp    <= M_AXI_RRESP;
                         m_axi_rready  <= 0;
-                        m_axi_arvalid <= 0;
                         read_state    <= 0;
                     end
                 end
@@ -252,6 +239,7 @@ module fifo_to_uart#
         endcase
     end
     //=========================================================================================================
+
 
 
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
@@ -285,7 +273,7 @@ module fifo_to_uart#
     //-------------------------------------------------------------------------------------------------
     // State machine that manages the TX side of the UART
     //-------------------------------------------------------------------------------------------------
-    reg[1:0] tx_state;
+    reg[1:0] tx_state;   
 
     always @(posedge M_AXI_ACLK) begin
         
@@ -332,7 +320,7 @@ module fifo_to_uart#
     //-------------------------------------------------------------------------------------------------
     // State machine that manages the RX side of the UART
     //-------------------------------------------------------------------------------------------------
-    reg[1:0] rx_state;
+    reg[1:0] rx_state; 
     always @(posedge M_AXI_ACLK) begin
         
         recv_fifo_write <= 0;
