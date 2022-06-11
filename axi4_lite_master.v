@@ -18,7 +18,7 @@ module axi4_lite_master#
 (
     //============================ The AMCI interface ==========================
     input  wire[97:0] AMCI_MOSI,    // AMCI Master Out, Slave In
-    output wire[33:0] AMCI_MISO,    // AMCI Master In, Slave Out
+    output wire[37:0] AMCI_MISO,    // AMCI Master In, Slave Out
     //==========================================================================
     
 
@@ -236,7 +236,7 @@ module axi4_lite_master#
 
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><    
-    //  Below, we're goiing to wire the "amci_xxx" half of the interface to the input and output ports of
+    //  Below, we're going to wire the "amci_xxx" half of the interface to the input and output ports of
     //  this module.   If you want to adapt this module to use custom drive logic (instead of using it as a
     //  stand-alone AXI bus-master module), remove the wiring below, remove the AMCI ports from this module's
     //  port list, and add your own custom logic below to drive the "amci" registers.
@@ -256,6 +256,8 @@ module axi4_lite_master#
     localparam AMCI_RDATA_OFFSET = 0;   localparam pb1 = AMCI_RDATA_OFFSET + AXI_DATA_WIDTH;
     localparam AMCI_WIDLE_OFFSET = pb1; localparam pb2 = AMCI_WIDLE_OFFSET + 1;
     localparam AMCI_RIDLE_OFFSET = pb2; localparam pb3 = AMCI_RIDLE_OFFSET + 1;
+    localparam AMCI_WRESP_OFFSET = pb3; localparam pb4 = AMCI_WRESP_OFFSET + 2;
+    localparam AMCI_RRESP_OFFSET = pb4; localparam pb5 = AMCI_RRESP_OFFSET + 2;
 
     wire[AXI_ADDR_WIDTH-1:0] AMCI_WADDR = AMCI_MOSI[AMCI_WADDR_OFFSET +: AXI_ADDR_WIDTH];
     wire[AXI_DATA_WIDTH-1:0] AMCI_WDATA = AMCI_MOSI[AMCI_WDATA_OFFSET +: AXI_DATA_WIDTH];
@@ -266,6 +268,8 @@ module axi4_lite_master#
     wire[AXI_DATA_WIDTH-1:0] AMCI_RDATA = AMCI_MISO[AMCI_RDATA_OFFSET +: AXI_DATA_WIDTH];
     wire                     AMCI_WIDLE = AMCI_MISO[AMCI_WIDLE_OFFSET +: 1];
     wire                     AMCI_RIDLE = AMCI_MISO[AMCI_RIDLE_OFFSET +: 1];
+    wire                     AMCI_WRESP = AMCI_MISO[AMCI_WRESP_OFFSET +: 2];
+    wire                     AMCI_RRESP = AMCI_MISO[AMCI_RRESP_OFFSET +: 2];
     //=========================================================================================================
 
 
@@ -277,7 +281,8 @@ module axi4_lite_master#
         amci_wdata <= AMCI_WDATA;
         amci_write <= AMCI_WRITE;
     end
-    assign AMCI_WIDLE = amci_widle;    
+    assign AMCI_WIDLE = amci_widle;  
+    assign AMCI_WRESP = amci_wresp;  
     //=========================================================================================================
 
     //=========================================================================================================
@@ -289,6 +294,7 @@ module axi4_lite_master#
     end 
     assign AMCI_RIDLE = amci_ridle;
     assign AMCI_RDATA = amci_rdata;
+    assign AMCI_RRESP = amci_rresp;
     //=========================================================================================================
 
 endmodule
