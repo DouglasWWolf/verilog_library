@@ -25,7 +25,7 @@
 module button#
 (
     parameter ACTIVE_STATE    = 1,
-    parameter CLOCKS_PER_USEC = 125,
+    parameter CLOCKS_PER_USEC = 100,
     parameter DEBOUNCE_MSEC   = 10
 ) 
 (
@@ -58,20 +58,12 @@ module button#
         button_sync[2] <= button_sync[1];
         button_sync[1] <= button_sync[0];
         button_sync[0] <= PIN;
-        
-        // Presume for the moment that we haven't detected the active-going edge of the button        
-        edge_detected <= 0;       
-        
+              
         // If the debounce clock is about to expire, find out of the user-specfied pin is still active
-        if (debounce_clock == 1) begin
-            edge_detected <= (button_sync[1] == ACTIVE_STATE);
-            debounce_clock <= 0;
-        end
-        
-        // Otherwise, if the debounce clock is still counting down, decrement it
-        else if (debounce_clock != 0) begin
-            debounce_clock <= debounce_clock - 1;
-        end  
+        edge_detected <= (debounce_clock == 1) && (button_sync[1] == ACTIVE_STATE);
+
+        // If the debounce clock is still counting down, decrement it
+        if (debounce_clock) debounce_clock <= debounce_clock - 1;
         
         // If the pin is high and was previously low, start the debounce clock
         if (button_sync[2:1] == ACTIVE_EDGE) debounce_clock <= DEBOUNCE_PERIOD;
