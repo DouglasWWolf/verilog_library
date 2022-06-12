@@ -145,8 +145,8 @@ module axi4_lite_master#
                     end
                 end
                 
-           // Wait around for the slave to assert "M_AXI_BVALID".  When it does, we'll acknowledge
-           // it by raising M_AXI_BREADY for one cycle, and go back to idle state
+           // Wait around for the slave to assert "M_AXI_BVALID".  When it does, we'll save the 
+           // write-response, lower M_AXI_BREADY, and go back to waiting for a start signal
            2:   if (B_HANDSHAKE) begin
                     amci_wresp   <= M_AXI_BRESP;
                     m_axi_bready <= 0;
@@ -258,18 +258,6 @@ module axi4_lite_master#
     localparam AMCI_RIDLE_OFFSET = pb2; localparam pb3 = AMCI_RIDLE_OFFSET + 1;
     localparam AMCI_WRESP_OFFSET = pb3; localparam pb4 = AMCI_WRESP_OFFSET + 2;
     localparam AMCI_RRESP_OFFSET = pb4; localparam pb5 = AMCI_RRESP_OFFSET + 2;
-
-    wire[AXI_ADDR_WIDTH-1:0] AMCI_WADDR = AMCI_MOSI[AMCI_WADDR_OFFSET +: AXI_ADDR_WIDTH];
-    wire[AXI_DATA_WIDTH-1:0] AMCI_WDATA = AMCI_MOSI[AMCI_WDATA_OFFSET +: AXI_DATA_WIDTH];
-    wire[AXI_ADDR_WIDTH-1:0] AMCI_RADDR = AMCI_MOSI[AMCI_RADDR_OFFSET +: AXI_ADDR_WIDTH];
-    wire AMCI_WRITE                     = AMCI_MOSI[AMCI_WRITE_OFFSET +: 1];
-    wire AMCI_READ                      = AMCI_MOSI[AMCI_READ_OFFSET  +: 1];
-
-    wire[AXI_DATA_WIDTH-1:0] AMCI_RDATA = AMCI_MISO[AMCI_RDATA_OFFSET +: AXI_DATA_WIDTH];
-    wire                     AMCI_WIDLE = AMCI_MISO[AMCI_WIDLE_OFFSET +: 1];
-    wire                     AMCI_RIDLE = AMCI_MISO[AMCI_RIDLE_OFFSET +: 1];
-    wire                     AMCI_WRESP = AMCI_MISO[AMCI_WRESP_OFFSET +: 2];
-    wire                     AMCI_RRESP = AMCI_MISO[AMCI_RRESP_OFFSET +: 2];
     //=========================================================================================================
 
 
@@ -277,24 +265,25 @@ module axi4_lite_master#
     // Wire the "write-to-slave" FSM inputs and outputs to the module ports
     //=========================================================================================================
     always @(*) begin
-        amci_waddr <= AMCI_WADDR;
-        amci_wdata <= AMCI_WDATA;
-        amci_write <= AMCI_WRITE;
+        amci_waddr <= AMCI_MOSI[AMCI_WADDR_OFFSET +: AXI_ADDR_WIDTH];
+        amci_wdata <= AMCI_MOSI[AMCI_WDATA_OFFSET +: AXI_DATA_WIDTH];
+        amci_write <= AMCI_MOSI[AMCI_WRITE_OFFSET +: 1             ];
     end
-    assign AMCI_WIDLE = amci_widle;  
-    assign AMCI_WRESP = amci_wresp;  
+    assign AMCI_MISO[AMCI_WIDLE_OFFSET +: 1] = amci_widle; 
+    assign AMCI_MISO[AMCI_WRESP_OFFSET +: 2] = amci_wresp;
     //=========================================================================================================
 
     //=========================================================================================================
     // Wire the "read-from-slave" FSM inputs and outputs to the module ports
     //=========================================================================================================
     always @(*) begin
-        amci_raddr <= AMCI_RADDR;
-        amci_read  <= AMCI_READ;
+        amci_raddr <= AMCI_MOSI[AMCI_RADDR_OFFSET +: AXI_ADDR_WIDTH];
+        amci_read  <= AMCI_MOSI[AMCI_READ_OFFSET  +: 1             ];
     end 
-    assign AMCI_RIDLE = amci_ridle;
-    assign AMCI_RDATA = amci_rdata;
-    assign AMCI_RRESP = amci_rresp;
+    
+    assign AMCI_MISO[AMCI_RIDLE_OFFSET +: 1             ] = amci_ridle; 
+    assign AMCI_MISO[AMCI_RRESP_OFFSET +: 2             ] = amci_rresp;
+    assign AMCI_MISO[AMCI_RDATA_OFFSET +: AXI_DATA_WIDTH] = amci_rdata;
     //=========================================================================================================
 
 endmodule
