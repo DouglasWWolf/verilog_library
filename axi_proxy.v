@@ -8,6 +8,23 @@
 // 21-Jul-22  DWW  1000  Initial creation
 //====================================================================================
 
+/*
+
+    This module serves as a proxy for AXI read-write transactions.
+
+    On the AXI4-lite slave interface, there are three 32-bit registers:
+       Offset 0x00 = Data 
+       Offset 0x04 = High 32-bits of AXI address to read/write from/to
+       Offset 0x08 = Low  32-bits of AXI address to read/write from/to
+
+    Use in an application is simple:
+        Use the address registers to define the AXI address you are interested in, 
+        then either perform an AXI-read of the data register, or an AXI-write to the
+        data-register.   The read/write transaction will occur at at specified
+        address.
+
+*/
+
 
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
