@@ -33,6 +33,13 @@
         Connect M00_AXI to the data source (or its interconnect)
         Connect M01_AXI to the data destination (or its interconnect)
 
+    Overall architecture of the DMA engine:
+
+    4Kb blocks of data are copied from the source into the FIFO.   Once a block of
+    data is in the FIFO, a seperate process reads it from the FIFO and sends it to
+    the destination.   For the sake of effiency, the "read from source" and "write
+    to destination" processes happen in parallel.
+
 */
 
 
@@ -220,7 +227,8 @@ module dma_engine#
     wire RESET = ~AXI_ARESETN;
     
     // The FIFO uses this to tell us when the read lines of the FIFO are valid
-    wire FIFO_EMPTY;
+    wire fifo_empty;
+    wire fifo_data_valid = ~fifo_empty;
 
     // This keeps track of whether the DMA engine is idle
     wire is_dma_engine_idle = (dma_start == 0 && dma_state == 0 && (blocks_read == blocks_written));
@@ -624,11 +632,11 @@ module dma_engine#
 
             // If there is a block waiting for us in the FIFO... 
             1:  if (BLOCKS_IN_FIFO) begin
-                    m01_axi_awvalid <= 1;                    // Tell the slave that the address on the bus is valid
-                    beats_remaining <= BEATS_PER_BURST;      // This is how many beats we have yet to write to the bus
-                    if (M01_AW_HANDSHAKE) begin              // If we see the "Write-Address" handshake...
-                        m01_axi_awvalid <= 0;                //   Stop saying the address is valid
-                        m01_write_state <= 2;                //   Go start writing data beats to the AXI bus
+                    m01_axi_awvalid <= 1;                // Tell the slave that the address on the bus is valid
+                    beats_remaining <= BEATS_PER_BURST;  // This is how many beats we have yet to write to the bus
+                    if (M01_AW_HANDSHAKE) begin          // If we see the AW channel acknowledgement...
+                        m01_axi_awvalid <= 0;            //   Stop broadcasting on the AW channel
+                        m01_write_state <= 2;            //   And go start writing data beats to the AXI bus
                     end
                 end else begin
                     if (is_dma_engine_idle) m01_write_state <= 0;
@@ -636,17 +644,25 @@ module dma_engine#
             
             
             // If there is data available in the FIFO, send it to the AXI destination
-            2:  if (FIFO_EMPTY == 0) begin
+            2:  if (fifo_data_valid) begin
+                        
+                    // Tell the AXI bus that we have valid data to write
                     m01_axi_wvalid  <= 1;
+                        
+                    // On the last beat, turn on the AXI "WLAST" signal
                     m01_axi_wlast   <= (beats_remaining == 1);
+                                
+                    // If we just saw the handshake from the last beat....
                     if (M01_W_HANDSHAKE && beats_remaining == 1) begin
                         m01_axi_bready  <= 1;
                         m01_write_state <= 3;
                     end
+
+                    // In any case, there is now one fewer beats to transmit
                     beats_remaining <= beats_remaining - 1;
                 end
 
-            // For for the other side to acknowledge our B channel
+            // Wait for the other side to acknowledge our B channel
             3:  if (M01_B_HANDSHAKE) begin
                     blocks_written  <= blocks_written + 1;
                     m01_axi_bready  <= 0;
@@ -657,9 +673,6 @@ module dma_engine#
         endcase
     end
     //=========================================================================================================
-
-
-
 
 
 
@@ -734,12 +747,9 @@ module dma_engine#
 
 
 
-
-
-
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><
-    //    This is the FIFO that serves as buffer between the read-from-source DMA state-machine and the
+    //    This is the FIFO that serves as a buffer between the read-from-source DMA state-machine and the
     //    write-to-destination DMA state-machine
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><
@@ -774,7 +784,7 @@ module dma_engine#
     (
         .rst        (RESET          ),                      
         .wr_clk     (AXI_ACLK       ),          
-        .empty      (FIFO_EMPTY     ),            
+        .empty      (fifo_empty     ),            
         .din        (M00_AXI_RDATA  ),                 
         .wr_en      (M00_R_HANDSHAKE),            
         .dout       (M01_AXI_WDATA  ),              
@@ -813,7 +823,7 @@ module dma_engine#
         assign DBG_DMA_START       = dma_start;
         assign DBG_DMA_STATE       = dma_state;
         assign DBG_BLOCKS_IN_FIFO  = BLOCKS_IN_FIFO;
-        assign DBG_FIFO_EMPTY      = FIFO_EMPTY;
+        assign DBG_FIFO_EMPTY      = fifo_empty;
         assign DBG_FIFO_READ       = M01_W_HANDSHAKE;
         assign DBG_FIFO_WRITE      = M00_R_HANDSHAKE;
         assign DBG_M00_READ_STATE  = m00_read_state;
