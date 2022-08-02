@@ -54,7 +54,7 @@
 
 module dma_engine#
 (
-    parameter integer SRC_ADDR_OFFSET  = 64'hC000_0000,
+    parameter integer SRC_ADDR_OFFSET  = 64'h0000_0000,
     parameter integer DST_ADDR_OFFSET  = 64'h0000_0000,
     parameter integer AXI_DATA_WIDTH   = 512,
     parameter integer AXI_ADDR_WIDTH   = 64,
