@@ -54,12 +54,12 @@
 
 module dma_engine#
 (
-    parameter integer SRC_ADDR_OFFSET  = 64'h0000_0000,
-    parameter integer DST_ADDR_OFFSET  = 64'h0000_0000,
-    parameter integer AXI_DATA_WIDTH   = 512,
-    parameter integer AXI_ADDR_WIDTH   = 64,
-    parameter integer S_AXI_ADDR_WIDTH = 32,
-    parameter integer S_AXI_DATA_WIDTH = 32 
+    parameter[63:0] SRC_ADDR_OFFSET  = 64'h0000_0000,
+    parameter[63:0] DST_ADDR_OFFSET  = 64'h0000_0000,
+    parameter       AXI_DATA_WIDTH   = 512,
+    parameter       AXI_ADDR_WIDTH   = 64,
+    parameter       S_AXI_ADDR_WIDTH = 5,
+    parameter       S_AXI_DATA_WIDTH = 32 
 
 )
 (
@@ -228,7 +228,6 @@ module dma_engine#
     
     // The FIFO uses this to tell us when the read lines of the FIFO are valid
     wire fifo_empty;
-    wire fifo_data_valid = ~fifo_empty;
 
     // This keeps track of whether the DMA engine is idle
     wire is_dma_engine_idle = (dma_start == 0 && dma_state == 0 && (blocks_read == blocks_written));
@@ -245,7 +244,7 @@ module dma_engine#
     // These are valid values for BRESP and RRESP
     localparam OKAY   = 0;
     localparam SLVERR = 2;
-
+    
     // These are for communicating with application-specific read and write logic
     reg  user_read_start,  user_read_idle;
     reg  user_write_start, user_write_idle;
@@ -401,7 +400,7 @@ module dma_engine#
                 REG_DST_H:    s_axi_rdata <= register[REG_DST_H];
                 REG_DST_L:    s_axi_rdata <= register[REG_DST_L];
                 REG_COUNT:    s_axi_rdata <= register[REG_COUNT];
-                REG_CTL_STAT: s_axi_rdata <= ~is_dma_engine_idle;
+                REG_CTL_STAT: s_axi_rdata <= (~is_dma_engine_idle) & 1;
                 
                 // A read of an unknown register results in a SLVERR response
                 default:      begin
@@ -432,7 +431,7 @@ module dma_engine#
     //  dma_dest   = The destination address of the DMA transfer
     //  dma_count  = The number of 4Kb blocks to transfer from source to destination
     //=========================================================================================================
-
+    
     always @(posedge AXI_ACLK) begin
 
         // When dma_start gets set to 1, ensure that it's a one-clock-cycle pulse
@@ -445,7 +444,7 @@ module dma_engine#
             // By default, we'll return a write-response of OKAY
             s_axi_bresp    <= OKAY;     
             
-            // Turn the write-address into a register number
+            // Write to the appropriate register
             case(s_axi_awaddr >> 2)
                 
                 // Handle writes to legitimate register addresses
@@ -586,7 +585,6 @@ module dma_engine#
     // Wire up the registered AXI outputs
     reg[AXI_ADDR_WIDTH-1:0] m01_axi_awaddr;  assign M01_AXI_AWADDR  = m01_axi_awaddr;
     reg                     m01_axi_awvalid; assign M01_AXI_AWVALID = m01_axi_awvalid;
-    reg                     m01_axi_wvalid;  assign M01_AXI_WVALID  = m01_axi_wvalid;
     reg                     m01_axi_bready;  assign M01_AXI_BREADY  = m01_axi_bready;
     reg                     m01_axi_wlast;   assign M01_AXI_WLAST   = m01_axi_wlast;
 
@@ -598,18 +596,20 @@ module dma_engine#
     assign M01_AXI_AWBURST = INCR_BURST;
     assign M01_AXI_WSTRB   = (1 << BYTES_PER_BEAT) -1;
 
-    // Define the handshakes for AXI channels we need
+    // Define the handshakes for AXI channels we need 
     wire M01_AW_HANDSHAKE = M01_AXI_AWVALID & M01_AXI_AWREADY;
     wire M01_W_HANDSHAKE  = M01_AXI_WVALID  & M01_AXI_WREADY;
     wire M01_B_HANDSHAKE  = M01_AXI_BVALID  & M01_AXI_BREADY;
     //=========================================================================================================
 
+    assign M01_AXI_WVALID = (m01_write_state == 2 && fifo_empty == 0);
+
     always @(posedge AXI_ACLK) begin
         
-        // These signals should be low on any clock cycle they aren't explicitly driven high
-        m01_axi_wvalid <= 0;
+        // This signal should be low on any clock cycle that it isn't explicitly driven high
         m01_axi_wlast  <= 0;
         
+
         // If we're in RESET mode...
         if (AXI_ARESETN == 0) begin
             m01_write_state <= 0;
@@ -643,24 +643,24 @@ module dma_engine#
                 end
             
             
-            // If there is data available in the FIFO, send it to the AXI destination
-            2:  if (fifo_data_valid) begin
-                        
-                    // Tell the AXI bus that we have valid data to write
-                    m01_axi_wvalid  <= 1;
-                        
-                    // On the last beat, turn on the AXI "WLAST" signal
-                    m01_axi_wlast   <= (beats_remaining == 1);
-                                
-                    // If we just saw the handshake from the last beat....
-                    if (M01_W_HANDSHAKE && beats_remaining == 1) begin
+            // Every time we see a "Data was accepted" handshake, keep track of how many beats we've sent
+            2:  if (M01_W_HANDSHAKE) begin
+
+                    // If this is the 2nd to last beat, on the next cycle, (which is the last beat) raise AXI_WLAST
+                    // and AXI_BREADY in order to tell the other side that it's the last beat of the burst
+                    if (beats_remaining == 2) begin
+                        m01_axi_wlast   <= 1;
                         m01_axi_bready  <= 1;
-                        m01_write_state <= 3;
                     end
+
+                    // On the last beat, go wait for the handshake
+                    if (beats_remaining == 1) m01_write_state <= 3;
 
                     // In any case, there is now one fewer beats to transmit
                     beats_remaining <= beats_remaining - 1;
+
                 end
+
 
             // Wait for the other side to acknowledge our B channel
             3:  if (M01_B_HANDSHAKE) begin
