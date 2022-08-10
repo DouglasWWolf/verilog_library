@@ -1,0 +1,41 @@
+# Fetch the new project name from the command line
+new=$1
+
+# Ensure that the user gave us a project name
+if [ -z "$new" ]; then
+    echo "Missing new project name on command line!"
+    exit 1
+fi
+
+
+# Find the name of the Vivado project
+old=$(ls *.xpr 2>/dev/null)
+
+# Ensure that we actually found a project
+if [ -z "$old" ]; then
+    echo "No Vivado project found"
+    exit 1
+fi
+
+
+# Strip off the ".xpr" at the end
+old=${old%????}
+
+# Tell the user what we're about to do
+echo "Renaming Vivado project $old to $new"
+
+# Rename all of the directories
+for old_fn in $(ls -d ${old}.*); do
+    new_fn=${new}.${old_fn##*.}
+    mv ${old_fn} ${new_fn}
+done
+    
+# Fetch a list of files that need to be changed
+raw_list=$(grep -lr "/${old}\.")
+
+# Change the old project name to the new in all files
+for f in $raw_list; do
+    sed -i "s/\/${old}\./\/${new}\./g" $f
+done
+
+
