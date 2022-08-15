@@ -670,7 +670,10 @@ module measure_bw#
     assign M_AXI_WDATA = {wdata, 480'h0};
 
     // WVALID is true any time we're actively writing data
-    assign M_AXI_WVALID = (m_write_state == 1 && writes_queued > blocks_written);
+    assign M_AXI_WVALID = (m_write_state == 1 && writes_queued > blocks_written); 
+    
+    // WSTRB should always have all bits on to signify that this is a full-data-width write
+    assign M_AXI_WSTRB = -1;
 
     // WLAST is raised on the last beat of every burst
     assign M_AXI_WLAST  = (m_write_state == 1 && wbeats_remaining == 0);
