@@ -3,114 +3,122 @@
 //                        ------->  Revision History  <------
 //====================================================================================
 //
-//   Date     Who   Ver  Changes
+//   Date     Who   Ver  Changess
 //====================================================================================
 // 10-May-22  DWW  1000  Initial creation
 //====================================================================================
 
 
-//<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
-//<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
-//       Application-specific read/write logic goes at the bottom of the file
-//<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
-//<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 
-module axi4_lite_slave#
+module axi4_lite_slave
 (
-    parameter integer AXI_DATA_WIDTH = 32,
-    parameter integer AXI_ADDR_WIDTH = 5
-)
-(
+    input clk, resetn,
+
+    //======================  AXI Slave Handler Interface  =====================
+
+    // ASHI signals for handling AXI write requests
+    output[31:0]    ASHI_WADDR,
+    output[31:0]    ASHI_WDATA,
+    output          ASHI_WRITE,
+    input           ASHI_WIDLE,
+    input[1:0]      ASHI_WRESP,
+
+    // ASHI signals for handling AXI read requests
+    output[31:0]    ASHI_RADDR,
+    output          ASHI_READ,
+    input           ASHI_RIDLE,
+    input[31:0]     ASHI_RDATA,
+    input[1:0]      ASHI_RRESP,
+
     //================ From here down is the AXI4-Lite interface ===============
-    input wire  AXI_ACLK,
-    input wire  AXI_ARESETN,
         
     // "Specify write address"              -- Master --    -- Slave --
-    input  wire [AXI_ADDR_WIDTH-1 : 0]      S_AXI_AWADDR,   
-    input  wire                             S_AXI_AWVALID,  
-    output wire                                             S_AXI_AWREADY,
-    input  wire  [2 : 0]                    S_AXI_AWPROT,
+    input[31:0]                             AXI_AWADDR,   
+    input                                   AXI_AWVALID,  
+    output reg                                              AXI_AWREADY,
+    input[2:0]                              AXI_AWPROT,
 
     // "Write Data"                         -- Master --    -- Slave --
-    input  wire [AXI_DATA_WIDTH-1 : 0]      S_AXI_WDATA,      
-    input  wire                             S_AXI_WVALID,
-    input  wire [(AXI_DATA_WIDTH/8)-1:0]    S_AXI_WSTRB,
-    output wire                                             S_AXI_WREADY,
+    input[31:0]                             AXI_WDATA,      
+    input                                   AXI_WVALID,
+    input[3:0]                              AXI_WSTRB,
+    output reg                                              AXI_WREADY,
 
     // "Send Write Response"                -- Master --    -- Slave --
-    output  wire [1 : 0]                                    S_AXI_BRESP,
-    output  wire                                            S_AXI_BVALID,
-    input   wire                            S_AXI_BREADY,
+    output[1:0]                                             AXI_BRESP,
+    output reg                                              AXI_BVALID,
+    input                                   AXI_BREADY,
 
     // "Specify read address"               -- Master --    -- Slave --
-    input  wire [AXI_ADDR_WIDTH-1 : 0]      S_AXI_ARADDR,     
-    input  wire                             S_AXI_ARVALID,
-    input  wire [2 : 0]                     S_AXI_ARPROT,     
-    output wire                                             S_AXI_ARREADY,
+    input[31:0]                             AXI_ARADDR,     
+    input                                   AXI_ARVALID,
+    input[2:0]                              AXI_ARPROT,     
+    output reg                                              AXI_ARREADY,
 
     // "Read data back to master"           -- Master --    -- Slave --
-    output  wire [AXI_DATA_WIDTH-1 : 0]                     S_AXI_RDATA,
-    output  wire                                            S_AXI_RVALID,
-    output  wire [1 : 0]                                    S_AXI_RRESP,
-    input   wire                            S_AXI_RREADY
+    output[31:0]                                            AXI_RDATA,
+    output reg                                              AXI_RVALID,
+    output[1:0]                                             AXI_RRESP,
+    input                                   AXI_RREADY
     //==========================================================================
  );
 
-    // These are valid values for BRESP and RRESP
-    localparam OKAY   = 0;
-    localparam SLVERR = 2;
-
-    // These are for communicating with application-specific read and write logic
-    reg user_read_start,  user_read_idle;
-    reg user_write_start, user_write_idle;
-    wire user_write_complete = (user_write_start == 0) & user_write_idle;
-    wire user_read_complete  = (user_read_start  == 0) & user_read_idle;
-
     // Define the handshakes for all 5 AXI channels
-    wire B_HANDSHAKE  = S_AXI_BVALID  & S_AXI_BREADY;
-    wire R_HANDSHAKE  = S_AXI_RVALID  & S_AXI_RREADY;
-    wire W_HANDSHAKE  = S_AXI_WVALID  & S_AXI_WREADY;
-    wire AR_HANDSHAKE = S_AXI_ARVALID & S_AXI_ARREADY;
-    wire AW_HANDSHAKE = S_AXI_AWVALID & S_AXI_AWREADY;
-        
+    wire B_HANDSHAKE  = AXI_BVALID  & AXI_BREADY;
+    wire R_HANDSHAKE  = AXI_RVALID  & AXI_RREADY;
+    wire W_HANDSHAKE  = AXI_WVALID  & AXI_WREADY;
+    wire AR_HANDSHAKE = AXI_ARVALID & AXI_ARREADY;
+    wire AW_HANDSHAKE = AXI_AWVALID & AXI_AWREADY;
+
+    // The main fields that we pass to the handlerwhen a read or write request comes in
+    reg[31:0] ashi_waddr, ashi_wdata, ashi_raddr;
+
+    // Give the handler the write address, the write data, or the read address as soon 
+    // as they appear on the bus
+    assign ASHI_WADDR = (AW_HANDSHAKE) ? AXI_AWADDR : ashi_waddr;
+    assign ASHI_WDATA = (W_HANDSHAKE ) ? AXI_WDATA  : ashi_wdata;
+    assign ASHI_RADDR = (AR_HANDSHAKE) ? AXI_ARADDR : ashi_raddr;
+
+    // These are signals to the handler that they should handle a read or a write
+    assign ASHI_READ  = AR_HANDSHAKE;
+    assign ASHI_WRITE = W_HANDSHAKE;
+
+    // The two response signals are always whatever the handler says they are
+    assign AXI_BRESP = ASHI_WRESP;
+    assign AXI_RRESP = ASHI_RRESP;
+
+    // Read-data is always whatever the handler says it is
+    assign AXI_RDATA = ASHI_RDATA;
+
     //=========================================================================================================
     // FSM logic for handling AXI read transactions
     //=========================================================================================================
-    // When a valid address is presented on the bus, this register holds it
-    reg[AXI_ADDR_WIDTH-1:0] axi_araddr;
-
-    // Wire up the AXI interface outputs
-    reg                     axi_arready; assign S_AXI_ARREADY = axi_arready;
-    reg                     axi_rvalid;  assign S_AXI_RVALID  = axi_rvalid;
-    reg[1:0]                axi_rresp;   assign S_AXI_RRESP   = axi_rresp;
-    reg[AXI_DATA_WIDTH-1:0] axi_rdata;   assign S_AXI_RDATA   = axi_rdata;
-     //=========================================================================================================
     reg read_state;
-    always @(posedge AXI_ACLK) begin
-        user_read_start <= 0;
+
+    always @(posedge clk) begin
         
-        if (AXI_ARESETN == 0) begin
+        if (resetn == 0) begin
             read_state  <= 0;
-            axi_arready <= 1;
-            axi_rvalid  <= 0;
+            AXI_ARREADY <= 0;
+            AXI_RVALID  <= 0;
         end else case(read_state)
 
         0:  begin
-                axi_rvalid <= 0;                        // RVALID will go high only when we have filled in RDATA
-                if (S_AXI_ARVALID) begin                // If the AXI master has given us an address to read...
-                    axi_arready     <= 0;               //   We are no longer ready to accept an address
-                    axi_araddr      <= S_AXI_ARADDR;    //   Register the address that is being read from
-                    user_read_start <= 1;               //   Start the application-specific read-logic
-                    read_state      <= 1;               //   And go wait for that read-logic to finish
+                AXI_ARREADY <= 1;               // Tell the outside world we're ready for an address
+                if (AXI_ARVALID) begin          // If the AXI master has given us an address to read...
+                    ashi_raddr  <= AXI_ARADDR;  //   Register the address that is being read from
+                    AXI_ARREADY <= 0;           //   We are no longer ready to accept an address
+                    read_state  <= 1;           //   And go wait for that read-logic to finish
                 end
             end
+            
 
-        1:  if (user_read_complete) begin               // If the application-specific read-logic is done...
-                axi_rvalid <= 1;                        //   Tell the AXI master that RDATA and RRESP are valid
-                if (R_HANDSHAKE) begin                  //   Wait for the AXI master to say "OK, I saw your response"
-                    axi_rvalid  <= 0;                   //     The AXI master has registered our data
-                    axi_arready <= 1;                   //     Once that happens, we're ready to start a new transaction
-                    read_state  <= 0;                   //     And go wait for a new transaction to arrive
+        1:  if (ASHI_RIDLE) begin               // If the application-specific read-logic is done...
+                AXI_RVALID <= 1;                //   Tell the AXI master that RDATA and RRESP are valid
+                if (R_HANDSHAKE) begin          //   Wait for the AXI master to say "OK, I saw your response"
+                    AXI_RVALID  <= 0;           //     The AXI master has registered our data
+                    AXI_ARREADY <= 1;           //     Once that happens, we're ready to start a new transaction
+                    read_state  <= 0;           //     And go wait for a new transaction to arrive
                 end
             end
 
@@ -122,50 +130,39 @@ module axi4_lite_slave#
     //=========================================================================================================
     // FSM logic for handling AXI write transactions
     //=========================================================================================================
-    // When a valid address is presented on the bus, this register holds it
-    reg[AXI_ADDR_WIDTH-1:0] axi_awaddr;
-
-    // When valid write-data is presented on the bus, this register holds it
-    reg[AXI_DATA_WIDTH-1:0] axi_wdata;
-    
-    // Wire up the AXI interface outputs
-    reg      axi_awready; assign S_AXI_AWREADY = axi_arready;
-    reg      axi_wready;  assign S_AXI_WREADY  = axi_wready;
-    reg      axi_bvalid;  assign S_AXI_BVALID  = axi_bvalid;
-    reg[1:0] axi_bresp;   assign S_AXI_BRESP   = axi_bresp;
-    //=========================================================================================================
     reg write_state;
-    always @(posedge AXI_ACLK) begin
-        user_write_start <= 0;
-        if (AXI_ARESETN == 0) begin
+    always @(posedge clk) begin
+
+        if (resetn == 0) begin
             write_state <= 0;
-            axi_awready <= 1;
-            axi_wready  <= 1;
-            axi_bvalid  <= 0;
+            AXI_AWREADY <= 0;
+            AXI_WREADY  <= 0;
+            AXI_BVALID  <= 0;
         end else case(write_state)
 
         0:  begin
-                axi_bvalid <= 0;                      // BVALID will go high only when we have filled in BRESP
-
-                if (AW_HANDSHAKE) begin               // If this is the write-address handshake...
-                    axi_awready <= 0;                 //     We are no longer ready to accept a new address
-                    axi_awaddr  <= S_AXI_AWADDR;      //     Keep track of the address we should write to
+                AXI_AWREADY <= 1;
+                AXI_WREADY  <= 1; 
+                
+                if (AW_HANDSHAKE) begin         // If this is the write-address handshake...
+                    ashi_waddr  <= AXI_AWADDR;  //     Latch the address we're writing to
+                    AXI_AWREADY <= 0;           //     We are no longer ready to accept a new address
                 end
 
-                if (W_HANDSHAKE) begin                // If this is the write-data handshake...
-                    axi_wready       <= 0;            //     We are no longer ready to accept new data
-                    axi_wdata        <= S_AXI_WDATA;  //     Keep track of the data we're supposed to write
-                    user_write_start <= 1;            //     Start the application-specific write logic
-                    write_state      <= 1;            //     And go wait for that write-logic to complete
+                if (W_HANDSHAKE) begin          // If this is the write-data handshake...
+                    ashi_wdata  <= AXI_WDATA;   //     Latch the data we're going to write
+                    AXI_WREADY  <= 0;           //     We are no longer ready to accept new data
+                    write_state <= 1;           //     And go wait for that write-logic to complete
                 end
             end
 
-        1:  if (user_write_complete) begin             // If the application-specific write-logic is done...
-                axi_bvalid <= 1;                       //   Tell the AXI master that BRESP is valid
-                if (B_HANDSHAKE) begin                 //   Wait for the AXI master to say "OK, I saw your response"
-                    axi_awready <= 1;                  //     Once that happens, we're ready for a new address
-                    axi_wready  <= 1;                  //     And we're ready for new data
-                    write_state <= 0;                  //     Go wait for a new transaction to arrive
+        1:  if (ASHI_WIDLE) begin               // If the application-specific write-logic is done...
+                AXI_BVALID <= 1;                //   Tell the AXI master that BRESP is valid
+                if (B_HANDSHAKE) begin          //   Wait for the AXI master to say "OK, I saw your response"
+                    AXI_BVALID  <= 0;           //     Once that happens, lower BVALID again
+                    AXI_AWREADY <= 1;           //     We're ready to accept another address
+                    AXI_WREADY  <= 1;           //     And we're ready to accept new data
+                    write_state <= 0;           //     Go wait for a new transaction to arrive
                 end
             end
 
@@ -173,91 +170,5 @@ module axi4_lite_slave#
     end
     //=========================================================================================================
 
-
-
-    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><
-    //                  Application-specific read/write logic goes below this point
-    //
-    //                       An example of application-specific logic is below
-    //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><
-
-    //=========================================================================================================
-    // Your application specific state machine for handling AXI "read" transactions goes here
-    //=========================================================================================================
-    // The rules:
-    //
-    // --- Inputs ---
-    // Your can have your state machine start in one of two ways:
-    // Method 1: When "user_read_start" is true.
-    //           In this case, axi_araddr holds the address to read from
-    // Method 2: When AR_HANDSHAKE is true.
-    //           In this case, S_AXI_ARADDR holds the address to read from
-    //
-    // --- Outputs ---
-    // Your state machine is assumed to be idle/done whenever "user_read_idle" is high
-    // axi_rdata = The data to send back to the AXI master
-    // axi_rresp = The error response to send back to the AXI master, either OKAY or SLVERR (slave error)
-    //
-    // Don't forget that by convention, AXI4-lite addresses begin on 4-byte boundaries
-    //=========================================================================================================
-
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    // ~~~~~~~~~~~~~~~~~~~   This is an example of a state machine for handling AXI reads ~~~~~~~~~~~~~~~~~~~~~
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    // In this example, rather than build a full blown state machine, we are utilizing the "quick-and-dirty"
-    // method of responding every time the AXI Master asserts a valid read address on the bus
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // Any time the "address to read from" becomes valid...
-    reg[31:0] example_data;
-    always @(posedge AXI_ACLK) if (AR_HANDSHAKE) begin
-        axi_rresp      <= OKAY;                 // By default, our response will be OKAY
-        user_read_idle <= 1;                    // Tell the other task that we're (permanently) done
-        case (S_AXI_ARADDR)                     // Examine the address the user is reading
-            0:  axi_rdata <= 76;                //     If they're reading address 0, respond with 76
-            4:  axi_rdata <= example_data;      //     If they're reading address 4, give them some data
-            8:  axi_rdata <= 42;                //     If they're reading address 8, respond with 42
-            default:                            //     In all other cases, respond with a slave error
-                begin
-                  axi_rdata <= 32'h0DEC0DE0;
-                  axi_rresp <= SLVERR;
-                end
-        endcase
-    end
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
-    //=========================================================================================================
-    // Your application specific state machine for handling AXI "write transactions goes here
-    //=========================================================================================================
-    // The rules:
-    //
-    // --- Inputs ---
-    // Your state machine starts when "user_write_start" is true
-    // axi_awaddr = The address to write to
-    // axi_wdata  = The data to write
-    //
-    // --- Outputs ---
-    // Your state machine is assumed to be idle/done whenever "user_write_idle" is high
-    // axi_bresp = The error response to send back to the AXI master, either OKAY or SLVERR (slave error)
-    //
-    // Don't forget that by convention, AXI4-lite addresses begin on 4-byte boundaries
-    //=========================================================================================================
-
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    // ~~~~~~~~~~~~~~~~~   This is an example of a state machine for handling AXI writes  ~~~~~~~~~~~~~~~~~~~~~
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    always @(posedge AXI_ACLK) begin
-        user_write_idle  <= 1;
-        if (user_write_start) begin             // If we're supposed to perform a write...
-            axi_bresp <= OKAY;                  //     By default, our response will be OKAY
-            case (axi_awaddr)                   //     Examine the address the user is writing to
-                4:  example_data <= axi_wdata;  //     If they're writing to address 4, store their data
-                default:                        //     In all other cases, respond with a slave error
-                    axi_bresp    <= SLVERR;
-            endcase
-        end
-    end
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 endmodule
