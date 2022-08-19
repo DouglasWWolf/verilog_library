@@ -27,6 +27,9 @@ module tokenizer#
     // The RAM addresses of the input string and the output buffer
     input[AXI_ADDR_WIDTH-1:0] STR_ADDR, OUT_ADDR,
 
+    // This is the first token we parse
+    output reg[TOKEN_WIDTH-1:0] FIRST_TOKEN,
+
     // This will strobe high for one cycle when we should start
     input START,
     
@@ -90,7 +93,6 @@ module tokenizer#
     // The width of AXI_ARRESP and AXI_AWRESP
     localparam AXI_RESP_WIDTH = 2;
 
-
     //========================================================================================
     //           Define an AXI Master Control Interface for controlling the AXI bus
     //========================================================================================
@@ -135,9 +137,10 @@ module tokenizer#
     localparam tsm_SKIP_TRAILING_SPACES = 4;
     localparam tsm_SKIP_TRAILING_COMMA  = 5;
     localparam tsm_TOKENIZING_COMPLETE  = 6;
+    localparam tsm_FINISH_UP            = 7;
 
     // The state of the tokenizer state-machine
-    reg[7:0] tsm_state;
+    reg[3:0] tsm_state;
 
     // This will always be 0, ASCII ', or ASCII "
     reg[7:0] in_quotes;
@@ -147,6 +150,9 @@ module tokenizer#
 
     // This is the output address of the next token we parse
     reg[AXI_ADDR_WIDTH-1:0] out_addr;
+
+    // This is the number of tokens that have been output
+    reg[7:0] token_count;
 
     //========================================================================================
     // state machine for parsing tokens
@@ -166,6 +172,8 @@ module tokenizer#
         // When we're told to start, tell the character input-stream to start
         tsm_IDLE:
             if (START) begin
+                token_count  <= 0;
+                FIRST_TOKEN  <= 0;
                 istream_addr <= STR_ADDR + STR_ADDR_OFFSET;
                 out_addr     <= OUT_ADDR + OUT_ADDR_OFFSET;
                 istream_cmd  <= ISTREAM_START;
@@ -177,7 +185,7 @@ module tokenizer#
 
             // If we have a valid character from the input stream...
             if (istream_valid) begin
-                
+
                 // If that character is a space, skip over it
                 if (istream_data == " ") istream_cmd <= ISTREAM_GET_NEXT_BYTE;
                 
@@ -248,7 +256,13 @@ module tokenizer#
             
             // If the AMCI interface is ready for a command...
             if (amci_widle) begin
-                
+
+                // If this is the first token in the string, report it to our user
+                if (token_count == 0) FIRST_TOKEN <= token;
+
+                // Keep track of how many tokens we parse
+                token_count <= token_count + 1;
+
                 // We're going to write the token to out_addr
                 amci_waddr <= out_addr;
                 
@@ -285,11 +299,18 @@ module tokenizer#
                 tsm_state <= tsm_START_NEW_TOKEN;
             end
 
-        // We've parsed the last token
+        // We've parsed the last token, we're append an empty token to the output
         tsm_TOKENIZING_COMPLETE:
             if (amci_widle) begin
+                amci_waddr <= out_addr;
+                amci_wdata <= 0;
+                amci_wsize <= $clog2(TOKEN_BYTES);
+                amci_write <= 1;
                 tsm_state <= tsm_IDLE;
             end
+
+        tsm_FINISH_UP:
+            if (amci_widle) tsm_state <= tsm_IDLE;
 
         endcase
 
