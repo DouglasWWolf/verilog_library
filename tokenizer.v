@@ -121,7 +121,17 @@ module tokenizer#
     wire[7:0]                istream_data;
     wire                     istream_valid;
     //========================================================================================
-    
+
+
+    //========================================================================================
+    // Define an interface to the strtoul (ASCII to integer conversion) module
+    //========================================================================================
+    reg                      strtoul_start;
+    wire[1:0]                strtoul_status;
+    wire[63:0]               strtoul_result;
+    //========================================================================================
+
+
     // Determine how many bytes wide a token is
     localparam TOKEN_BYTES = TOKEN_WIDTH / 8;
 
@@ -134,10 +144,12 @@ module tokenizer#
     localparam tsm_START_NEW_TOKEN      = 1;
     localparam tsm_PARSE_TOKEN          = 2;
     localparam tsm_REACHED_END_OF_TOKEN = 3;
-    localparam tsm_SKIP_TRAILING_SPACES = 4;
-    localparam tsm_SKIP_TRAILING_COMMA  = 5;
-    localparam tsm_TOKENIZING_COMPLETE  = 6;
-    localparam tsm_FINISH_UP            = 7;
+    localparam tsm_WAIT_FOR_CONVERSION  = 4;
+    localparam tsm_WRITE_TOKEN_TO_RAM   = 5;
+    localparam tsm_SKIP_TRAILING_SPACES = 6;
+    localparam tsm_SKIP_TRAILING_COMMA  = 7;
+    localparam tsm_TOKENIZING_COMPLETE  = 8;
+    localparam tsm_FINISH_UP            = 9;
 
     // The state of the tokenizer state-machine
     reg[3:0] tsm_state;
@@ -162,8 +174,9 @@ module tokenizer#
     always @(posedge clk) begin
 
         // These signals should only strobe high for one cycle
-        istream_cmd <= 0;
-        amci_write  <= 0;
+        istream_cmd   <= 0;
+        amci_write    <= 0;
+        strtoul_start <= 0;
 
         if (resetn == 0) begin
             tsm_state <= tsm_IDLE;
@@ -251,9 +264,37 @@ module tokenizer#
                 end
             end
 
-        // When we reach the end of a token...
+        // When we reach the end of a token, start the task that checks
+        // to see if the token is an ASCII hex or decimal string, and 
+        // (if it is) convert that to a 64-bit integer
         tsm_REACHED_END_OF_TOKEN:
-            
+            begin
+                strtoul_start <= 1;
+                tsm_state     <= tsm_WAIT_FOR_CONVERSION;
+            end
+
+        // Here, we wait for the (potential) ASCII-to-integer conversion to complete
+        tsm_WAIT_FOR_CONVERSION:
+
+            // If the ASCII-to-integer conversion is complete...
+            if (strtoul_status) begin
+                
+                // If the input token was a numeric ASCII value...
+                if (strtoul_status > 1) begin
+                    
+                    // Replace our token with the integer result
+                    token <= strtoul_result;
+                    
+                    // And mark this token as an integer value
+                    token[TOKEN_WIDTH-1] <= 1;
+                end
+
+                // Go write this token to RAM
+                tsm_state <= tsm_WRITE_TOKEN_TO_RAM;
+            end
+
+        tsm_WRITE_TOKEN_TO_RAM:
+
             // If the AMCI interface is ready for a command...
             if (amci_widle) begin
 
@@ -276,13 +317,13 @@ module tokenizer#
                 amci_write <= 1;
 
                 // Bump the output address for next time
-                out_addr   <= out_addr + TOKEN_BYTES;
+                out_addr <= out_addr + TOKEN_BYTES;
 
                 // And go to the next step of character parsing
                 tsm_state  <= tsm_SKIP_TRAILING_SPACES;
             end
 
-        // Here, we skip past any spaces after our token
+        // Here, we skip past any trailing spaces after our token
         tsm_SKIP_TRAILING_SPACES:
             if (istream_valid) begin
                 if (istream_data == " ")
@@ -291,7 +332,7 @@ module tokenizer#
                     tsm_state   <= tsm_SKIP_TRAILING_COMMA;
             end
 
-        // Here, we check to see if there is a trailing comma.  If so, skip over it.
+        // Check to see if there is a trailing comma.  If so, skip over it.
         // One way or another, go start parsing a new token
         tsm_SKIP_TRAILING_COMMA:
             if (istream_valid) begin
@@ -299,7 +340,7 @@ module tokenizer#
                 tsm_state <= tsm_START_NEW_TOKEN;
             end
 
-        // We've parsed the last token, we're append an empty token to the output
+        // We've parsed the last token, so append an empty token to the output
         tsm_TOKENIZING_COMPLETE:
             if (amci_widle) begin
                 amci_waddr <= out_addr;
@@ -309,6 +350,7 @@ module tokenizer#
                 tsm_state <= tsm_IDLE;
             end
 
+        // Wait for the last write-to-RAM to complete, the return to idle state
         tsm_FINISH_UP:
             if (amci_widle) tsm_state <= tsm_IDLE;
 
@@ -318,7 +360,7 @@ module tokenizer#
 
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
-    //                        From here down are instantiations of sub-modules
+    //                     From here down are instantiations of sub-modules
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 
@@ -426,6 +468,20 @@ module tokenizer#
     );
     //========================================================================================
 
+
+    //========================================================================================
+    // strtoul : Converts an ASCII string to a 64-bit integer
+    //========================================================================================
+    strtoul#(.STR_WIDTH(TOKEN_WIDTH)) i_strtoul
+    (
+        .clk    (clk),
+        .resetn (resetn),
+        .START  (strtoul_start),
+        .INPSTR (token),
+        .STATUS (strtoul_status),
+        .RESULT (strtoul_result)
+    );
+    //========================================================================================
 
 endmodule
 
