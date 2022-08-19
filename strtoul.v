@@ -46,6 +46,9 @@ localparam STATUS_NOT  = 1;
 localparam STATUS_HEX  = 2;
 localparam STATUS_DEC  = 3;
 
+// The current state of the FSM
+reg[4:0] state;
+
 // Map a byte array on top of the INPSTR
 wire[7:0] inp_char[0:STRLEN-1];
 for (x=0; x<STRLEN; x=x+1) assign inp_char[x] = INPSTR[8*(STRLEN-1-x) +: 8];
@@ -59,15 +62,12 @@ reg[63:0] result; assign RESULT = result;
 // STATUS : 0=Not done, 1=Not-numeric, 2=ASCII Hex, 3=ASCII decimal
 reg[1:0] status; assign STATUS = (START == 1) ? STATUS_NONE :
                                  (state == 0) ? status      : STATUS_NONE;
-                               
-
+                             
 // These two bytes are always the character at the index, and the character after
 wire[7:0] c0, c1;
 assign c0 = inp_char[index];
 assign c1 = inp_char[index + 1];
 
-// The current state of the FSM
-reg[4:0] state;
 
 always @(posedge clk) begin
     
