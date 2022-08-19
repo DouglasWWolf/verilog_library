@@ -123,7 +123,7 @@ module axi4_noburst_master#
     assign AXI_ARQOS   = 0;   // Lowest quality of service (unused)
     assign AXI_ARPROT  = 0;   // Normal
 
-
+ 
     // Define the handshakes for all 5 AXI channels
     wire B_HANDSHAKE  = AXI_BVALID  & AXI_BREADY;
     wire R_HANDSHAKE  = AXI_RVALID  & AXI_RREADY;
@@ -132,8 +132,7 @@ module axi4_noburst_master#
     wire AW_HANDSHAKE = AXI_AWVALID & AXI_AWREADY;
 
     // This mask, anded with an address, will give the byte-offset-from-aligned of that address
-    // This is intentionally 1-bit wider than AXI_ADDR_WIDTH
-    wire[AXI_ADDR_WIDTH:0] ADDR_OFFSET_MASK = (1 << $clog2(AXI_DATA_WIDTH)) - 1;
+    wire[15:0] ADDR_OFFSET_MASK = (1 << $clog2(AXI_DATA_BYTES)) - 1;
 
     // These are the state variables for the read and write state machines
     reg[1:0] write_state, read_state;
