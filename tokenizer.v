@@ -79,7 +79,7 @@ module tokenizer#
     input                                              AXI_ARREADY,
 
     // "Read data back to master"      -- Master --    -- Slave --
-    input [AXI_DATA_WIDTH-1:0]                       AXI_RDATA,
+    input [AXI_DATA_WIDTH-1:0]                         AXI_RDATA,
     input                                              AXI_RVALID,
     input [1:0]                                        AXI_RRESP,
     input                                              AXI_RLAST,
