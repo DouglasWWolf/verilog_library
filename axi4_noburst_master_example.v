@@ -15,7 +15,7 @@
 //====================================================================================
 
 
-module axi4_noburst_master_example 
+module axi4_noburst_master_example #
 (
     parameter integer M_AXI_DATA_WIDTH = 32,
     parameter integer M_AXI_ADDR_WIDTH = 32
