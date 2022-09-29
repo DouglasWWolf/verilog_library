@@ -29,7 +29,7 @@
 module axi_revision#
 (
     parameter integer S_AXI_DATA_WIDTH   = 32,
-    parameter integer S_AXI_ADDR_WIDTH   =  4
+    parameter integer S_AXI_ADDR_WIDTH   =  5
 )
 (
     input wire  AXI_ACLK,
@@ -194,8 +194,8 @@ module axi_revision#
         endcase
     end
     //=========================================================================================================
-
-
+  
+ 
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><
     //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><
     //                  Application-specific read/write logic goes below this point
@@ -207,7 +207,8 @@ module axi_revision#
     localparam REG_MAJOR = 0;
     localparam REG_MINOR = 1;
     localparam REG_BUILD = 2;
-    localparam REG_DATE  = 3;
+    localparam REG_RCAND = 3;
+    localparam REG_DATE  = 4;
    
     //=========================================================================================================
     // State machine that handles AXI master reads of our AXI4-Lite slave registers
@@ -229,6 +230,7 @@ module axi_revision#
                 REG_MAJOR:  s_axi_rdata <= VERSION_MAJOR;
                 REG_MINOR:  s_axi_rdata <= VERSION_MINOR;
                 REG_BUILD:  s_axi_rdata <= VERSION_BUILD;
+                REG_RCAND:  s_axi_rdata <= VERSION_RCAND;
                 REG_DATE:   s_axi_rdata <= VERSION_DATE;
             endcase
         end
