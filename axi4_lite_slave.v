@@ -10,7 +10,7 @@
 
 
 
-module axi4_lite_slave
+module axi4_lite_slave # (parameter ADDR_MASK = 8'hFF)
 (
     input clk, resetn,
 
@@ -18,6 +18,7 @@ module axi4_lite_slave
 
     // ASHI signals for handling AXI write requests
     output[31:0]    ASHI_WADDR,
+    output[31:0]    ASHI_WINDX,
     output[31:0]    ASHI_WDATA,
     output          ASHI_WRITE,
     input           ASHI_WIDLE,
@@ -25,6 +26,7 @@ module axi4_lite_slave
 
     // ASHI signals for handling AXI read requests
     output[31:0]    ASHI_RADDR,
+    output[31:0]    ASHI_RINDX,
     output          ASHI_READ,
     input           ASHI_RIDLE,
     input[31:0]     ASHI_RDATA,
@@ -70,7 +72,7 @@ module axi4_lite_slave
     wire AR_HANDSHAKE = AXI_ARVALID & AXI_ARREADY;
     wire AW_HANDSHAKE = AXI_AWVALID & AXI_AWREADY;
 
-    // The main fields that we pass to the handlerwhen a read or write request comes in
+    // The main fields that we pass to the handler when a read or write request comes in
     reg[31:0] ashi_waddr, ashi_wdata, ashi_raddr;
 
     // Give the handler the write address, the write data, or the read address as soon 
@@ -88,7 +90,13 @@ module axi4_lite_slave
     assign AXI_RRESP = ASHI_RRESP;
 
     // Read-data is always whatever the handler says it is
-    assign AXI_RDATA = ASHI_RDATA;
+    assign AXI_RDATA = (resetn == 0) ? 32'hDEAD_BEEF : ASHI_RDATA;
+
+    // The register index for writes is determined by the register address
+    assign ASHI_WINDX = (ASHI_WADDR & ADDR_MASK) >> 2;
+
+    // The register index for reads is determined by the register address
+    assign ASHI_RINDX = (ASHI_RADDR & ADDR_MASK) >> 2;
 
     //=========================================================================================================
     // FSM logic for handling AXI read transactions
