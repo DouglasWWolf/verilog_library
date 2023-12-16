@@ -29,7 +29,6 @@ module axi_uart_bridge # (parameter CLOCK_FREQ = 100000000)
     output reg[31:0]                        M_UART_AWADDR,   
     output reg                              M_UART_AWVALID,  
     input                                                   M_UART_AWREADY,
-    output[2:0]                             M_UART_AWPROT,
 
     // "Write Data"                         -- Master --    -- Slave --
     output reg[31:0]                        M_UART_WDATA,      
@@ -45,7 +44,6 @@ module axi_uart_bridge # (parameter CLOCK_FREQ = 100000000)
     // "Specify read address"               -- Master --    -- Slave --
     output reg[31:0]                        M_UART_ARADDR,     
     output reg                              M_UART_ARVALID,
-    output[2:0]                             M_UART_ARPROT,     
     input                                                   M_UART_ARREADY,
 
     // "Read data back to master"           -- Master --    -- Slave --
@@ -62,7 +60,6 @@ module axi_uart_bridge # (parameter CLOCK_FREQ = 100000000)
     output reg[`AXI_ADDR_WIDTH-1:0]         M_AXI_AWADDR,   
     output reg                              M_AXI_AWVALID,  
     input                                                   M_AXI_AWREADY,
-    output[2:0]                             M_AXI_AWPROT,
 
     // "Write Data"                         -- Master --    -- Slave --
     output reg[`AXI_DATA_WIDTH-1:0]         M_AXI_WDATA,      
@@ -78,7 +75,6 @@ module axi_uart_bridge # (parameter CLOCK_FREQ = 100000000)
     // "Specify read address"               -- Master --    -- Slave --
     output reg[`AXI_ADDR_WIDTH-1:0]         M_AXI_ARADDR,     
     output reg                              M_AXI_ARVALID,
-    output[2:0]                             M_AXI_ARPROT,
     input  wire                                             M_AXI_ARREADY,
 
     // "Read data back to master"           -- Master --    -- Slave --
@@ -141,7 +137,6 @@ module axi_uart_bridge # (parameter CLOCK_FREQ = 100000000)
     //  At end:     Write is complete when "uart_amci_widle" goes high
     //              uart_amci_wresp = AXI_BRESP "write response" signal from slave
     //=========================================================================================================
-    assign M_UART_AWPROT  = 3'b000;
     assign M_UART_WSTRB   = 4'b1111;
     //=========================================================================================================
     always @(posedge aclk) begin
@@ -210,10 +205,6 @@ module axi_uart_bridge # (parameter CLOCK_FREQ = 100000000)
     //            uart_amci_rdata = The data that was read
     //            uart_amci_rresp = The AXI "read_response" that is used to indicate success or failure
     //=========================================================================================================
-    // Wire up the AXI interface outputs
-    assign M_UART_ARPROT  = 3'b001;
-    //=========================================================================================================
-    
     always @(posedge aclk) begin
           
         if (aresetn == 0) begin
@@ -409,7 +400,6 @@ module axi_uart_bridge # (parameter CLOCK_FREQ = 100000000)
     //  At end:     Write is complete when "amci_widle" goes high
     //              amci_wresp = AXI_BRESP "write response" signal from slave
     //=========================================================================================================
-    assign M_AXI_AWPROT  = 3'b000;
     assign M_AXI_WSTRB   = (1 << (AXI_DATA_WIDTH/8)) - 1; 
     //=========================================================================================================
     always @(posedge aclk) begin
@@ -477,8 +467,6 @@ module axi_uart_bridge # (parameter CLOCK_FREQ = 100000000)
     //  At end:   Read is complete when "amci_ridle" goes high.
     //            amci_rdata = The data that was read
     //            amci_rresp = The AXI "read response" that is used to indicate success or failure
-    //=========================================================================================================
-    assign M_AXI_ARPROT  = 3'b001;
     //=========================================================================================================
     always @(posedge aclk) begin
          
