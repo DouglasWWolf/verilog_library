@@ -38,7 +38,6 @@ module axi4_lite_slave # (parameter ADDR_MASK = 8'hFF)
     input[31:0]                             AXI_AWADDR,   
     input                                   AXI_AWVALID,  
     output reg                                              AXI_AWREADY,
-    input[2:0]                              AXI_AWPROT,
 
     // "Write Data"                         -- Master --    -- Slave --
     input[31:0]                             AXI_WDATA,      
@@ -54,7 +53,6 @@ module axi4_lite_slave # (parameter ADDR_MASK = 8'hFF)
     // "Specify read address"               -- Master --    -- Slave --
     input[31:0]                             AXI_ARADDR,     
     input                                   AXI_ARVALID,
-    input[2:0]                              AXI_ARPROT,     
     output reg                                              AXI_ARREADY,
 
     // "Read data back to master"           -- Master --    -- Slave --
