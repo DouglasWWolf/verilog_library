@@ -116,6 +116,46 @@ localparam SILENCE_TIMEOUT   = FREQ_HZ / 1000;
 reg[31:0] alignment_timer, silence_timer, reset_timer = 0;
 
 //=============================================================================
+// Synchronize "stat_rx_aligned" into "sync_rx_aligned"
+//=============================================================================
+wire sync_rx_aligned;
+xpm_cdc_single #
+(
+    .DEST_SYNC_FF  (4),   
+    .INIT_SYNC_FF  (0),   
+    .SIM_ASSERT_CHK(0), 
+    .SRC_INPUT_REG (0)   
+)
+cdc0
+(
+    .src_clk (               ),  
+    .src_in  (stat_rx_aligned),
+    .dest_clk(rx_clk         ), 
+    .dest_out(sync_rx_aligned) 
+);
+//=============================================================================
+
+
+//=============================================================================
+// Synchronize "sys_reset_in" into "sync_sys_reset_in"
+//=============================================================================
+wire sync_sys_reset_in;
+xpm_cdc_async_rst #
+(
+    .DEST_SYNC_FF(4),
+    .INIT_SYNC_FF(0),
+    .RST_ACTIVE_HIGH(1)
+)
+i_sync_sys_reset_in
+(
+    .src_arst (sys_reset_in),
+    .dest_clk (rx_clk),
+    .dest_arst(sync_sys_reset_in)
+);
+//=============================================================================
+
+
+//=============================================================================
 // 'allow_external_reset' will become '1' when we're sure that the initial
 // reset from the 'sys_reset_in' synchronizer has been de-asserted
 //
@@ -150,46 +190,6 @@ assign rx_out_tuser  = rx_in_tuser;
 assign rx_out_tvalid = rx_in_tvalid & (silence_timer == 0);
 //=============================================================================
 
-
-//=============================================================================
-// Synchronize "stat_rx_aligned" into "sync_rx_aligned"
-//=============================================================================
-wire sync_rx_aligned;
-xpm_cdc_single #
-(
-    .DEST_SYNC_FF  (4),   
-    .INIT_SYNC_FF  (0),   
-    .SIM_ASSERT_CHK(0), 
-    .SRC_INPUT_REG (0)   
-)
-cdc0
-(
-    .src_clk (               ),  
-    .src_in  (stat_rx_aligned),
-    .dest_clk(rx_clk         ), 
-    .dest_out(sync_rx_aligned) 
-);
-//=============================================================================
-
-
-
-//=============================================================================
-// Synchronize "sys_reset_in" into "sync_sys_reset_in"
-//=============================================================================
-wire sync_sys_reset_in;
-xpm_cdc_async_rst #
-(
-    .DEST_SYNC_FF(4),
-    .INIT_SYNC_FF(0),
-    .RST_ACTIVE_HIGH(1)
-)
-i_sync_sys_reset_in
-(
-    .src_arst (sys_reset_in),
-    .dest_clk (rx_clk),
-    .dest_arst(sync_sys_reset_in)
-);
-//=============================================================================
 
 // The CMAC is in reset when the timer is non-zero
 assign sys_reset_out = (reset_timer != 0);
