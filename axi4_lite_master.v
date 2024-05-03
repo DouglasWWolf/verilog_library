@@ -1,5 +1,3 @@
-`timescale 1ns / 1ps
-
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 //              This RTL core is a fully-functional AXI4-Lite Master
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
@@ -10,14 +8,16 @@
 //
 //   Date     Who   Ver  Changes
 //====================================================================================
-// 09-Sep-22  DWW  1000  Initial creation
+// 09-Sep-22  DWW     1  Initial creation
+//
+// 02-May-22  DWW     2  Removed the un-needed AXI PROT signals
 //====================================================================================
 
 
 module axi4_lite_master#
 (
-    parameter integer AXI_DATA_WIDTH = 32,
-    parameter integer AXI_ADDR_WIDTH = 32
+    parameter integer DW = 32,
+    parameter integer AW = 32
 )
 (
 
@@ -27,16 +27,16 @@ module axi4_lite_master#
     //==================  The AXI Master Control Interface  ====================
 
     // AMCI signals for performing AXI writes
-    input[AXI_ADDR_WIDTH-1:0]      AMCI_WADDR,
-    input[AXI_DATA_WIDTH-1:0]      AMCI_WDATA,
+    input[AW-1:0]                  AMCI_WADDR,
+    input[DW-1:0]                  AMCI_WDATA,
     input                          AMCI_WRITE,
     output reg[1:0]                AMCI_WRESP,
     output                         AMCI_WIDLE,
     
     // AMCI signals for performing AXI reads
-    input[AXI_ADDR_WIDTH-1:0]      AMCI_RADDR,
+    input[AW-1:0]                  AMCI_RADDR,
     input                          AMCI_READ,
-    output reg[AXI_DATA_WIDTH-1:0] AMCI_RDATA,
+    output reg[DW-1:0]             AMCI_RDATA,
     output reg[1:0]                AMCI_RRESP,
     output                         AMCI_RIDLE,
 
@@ -46,15 +46,14 @@ module axi4_lite_master#
     //====================  An AXI-Lite Master Interface  ======================
 
     // "Specify write address"          -- Master --    -- Slave --
-    output reg [AXI_ADDR_WIDTH-1:0]     AXI_AWADDR,   
+    output reg [AW-1:0]                 AXI_AWADDR,   
     output reg                          AXI_AWVALID,  
-    output     [2:0]                    AXI_AWPROT,
     input                                               AXI_AWREADY,
 
     // "Write Data"                     -- Master --    -- Slave --
-    output reg [AXI_DATA_WIDTH-1:0]     AXI_WDATA,      
+    output reg [DW-1:0]                 AXI_WDATA,      
     output reg                          AXI_WVALID,
-    output     [(AXI_DATA_WIDTH/8)-1:0] AXI_WSTRB,
+    output     [(DW/8)-1:0]             AXI_WSTRB,
     input                                               AXI_WREADY,
 
     // "Send Write Response"            -- Master --    -- Slave --
@@ -63,25 +62,20 @@ module axi4_lite_master#
     output reg                          AXI_BREADY,
 
     // "Specify read address"           -- Master --    -- Slave --
-    output reg [AXI_ADDR_WIDTH-1:0]     AXI_ARADDR,     
+    output reg [AW-1:0]                 AXI_ARADDR,     
     output reg                          AXI_ARVALID,
-    output     [2:0]                    AXI_ARPROT,     
     input                                               AXI_ARREADY,
 
     // "Read data back to master"       -- Master --    -- Slave --
-    input [AXI_DATA_WIDTH-1:0]                          AXI_RDATA,
+    input [DW-1:0]                                      AXI_RDATA,
     input                                               AXI_RVALID,
     input [1:0]                                         AXI_RRESP,
     output reg                          AXI_RREADY
     //==========================================================================
 
 );
-    // Assign all of the "write transaction" signals that are constant
-    assign AXI_AWPROT =  0;  // Normal
-    assign AXI_WSTRB  = -1;  // All data bytes are valid
-
-    // Assign all of the "read transaction" signals that are constant
-    assign AXI_ARPROT = 0;   // Normal
+    // All 4 bytes of data are always valid
+    assign AXI_WSTRB  = -1;  
  
     // Define the handshakes for all 5 AXI channels
     wire B_HANDSHAKE  = AXI_BVALID  & AXI_BREADY;
